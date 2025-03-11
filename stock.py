@@ -154,8 +154,13 @@ def additional_interactive_features(data):
     # Recent 30-day prices
     features['recent_table'] = data.tail(30)
     
-    # Ensure the 'Volume' column is numeric
-    data['Volume'] = pd.to_numeric(data['Volume'], errors='coerce').fillna(0)
+    # Ensure the 'Volume' column is a 1D Series
+    if isinstance(data['Volume'], pd.DataFrame):
+        volume_series = data['Volume'].squeeze()
+    else:
+        volume_series = data['Volume']
+    # Convert to numeric and fill missing values
+    data['Volume'] = pd.to_numeric(volume_series, errors='coerce').fillna(0)
     
     # Volume Chart using Plotly
     fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
@@ -217,7 +222,7 @@ def main():
     show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
-    # Tabs for Sections
+    # Tabs for Different Sections
     tabs = st.tabs([
         "📊 Dashboard", 
         "📈 Charts", 
@@ -242,7 +247,7 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # News & Sentiment Analysis
+    # News and Sentiment Analysis
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
@@ -251,7 +256,7 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            # Use .values to get a scalar closing price
+            # Retrieve a scalar closing price using .values[-1]
             closing_price = data['Close'].values[-1]
             if pd.isna(closing_price):
                 closing_display = "N/A"
@@ -354,7 +359,7 @@ def main():
         })
         st.success(f"Best Forecast Model: **{best_model}** with MAE: {errors[best_model]:.2f}")
         st.dataframe(forecast_df.style.format({
-            "Forecasted Price": "${:,.2f}", 
+            "Forecasted Price": "${:,.2f}",
             "Adjusted Forecast Price": "${:,.2f}"
         }))
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"],
