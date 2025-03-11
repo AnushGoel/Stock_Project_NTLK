@@ -118,9 +118,18 @@ with tabs[0]:
 
 with tabs[1]:
     st.header("📊 Historical Prices")
-    chart = alt.Chart(data.reset_index()).mark_line().encode(
-        x='Date', y='Close', tooltip=['Date', 'Close']).properties(height=400)
+    
+    chart_data = data.reset_index()[['Date', 'Close']].dropna()
+    chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+
+    chart = alt.Chart(chart_data).mark_line().encode(
+        x=alt.X('Date:T', title='Date'),
+        y=alt.Y('Close:Q', title='Closing Price (USD)', axis=alt.Axis(format="$,.2f")),
+        tooltip=['Date:T', alt.Tooltip('Close:Q', format="$,.2f")]
+    ).properties(height=400, width=700, title=f"{ticker} Closing Prices Over Time")
+
     st.altair_chart(chart, use_container_width=True)
+
 
 with tabs[2]:
     st.header("📉 Stock Price Forecast")
