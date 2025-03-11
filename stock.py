@@ -53,12 +53,21 @@ def get_news_summaries(news_items):
     return pd.DataFrame(summaries)
 
 def forecast_prophet(data, days):
-    df = data.reset_index().rename(columns={"Date":"ds", "Close":"y"})
+    df = data.reset_index().rename(columns={"Date": "ds", "Close": "y"})
+    df = df[['ds', 'y']].dropna()
+
+    # Explicitly ensure numeric values
+    df['y'] = pd.to_numeric(df['y'], errors='coerce')
+    df.dropna(inplace=True)
+
     model = Prophet(daily_seasonality=True)
     model.fit(df)
+
     future = model.make_future_dataframe(periods=days)
     forecast = model.predict(future)
-    return forecast['yhat'].tail(days).values
+
+    return forecast[['ds', 'yhat']].tail(days)['yhat'].values
+
 
 def forecast_arima(series, days):
     model = ARIMA(series, order=(5,1,0))
