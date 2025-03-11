@@ -223,7 +223,16 @@ def main():
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
     # Create multiple tabs for different sections
-    tabs = st.tabs(["📊 Dashboard", "📈 Charts", "🕯️ Candlestick", "🚀 Forecast", "📰 News Impact", "💡 Insights", "📌 Detailed Analysis", "⚙️ Settings"])
+    tabs = st.tabs([
+        "📊 Dashboard", 
+        "📈 Charts", 
+        "🕯️ Candlestick", 
+        "🚀 Forecast", 
+        "📰 News Impact", 
+        "💡 Insights", 
+        "📌 Detailed Analysis", 
+        "⚙️ Settings"
+    ])
     
     # ---------------------------
     # Data Acquisition
@@ -258,6 +267,7 @@ def main():
                 closing_display = "N/A"
             else:
                 try:
+                    # Force conversion to float
                     price_value = float(closing_price)
                     closing_display = f"${price_value:.2f}"
                 except Exception:
@@ -311,7 +321,6 @@ def main():
     with tabs[2]:
         st.header("Candlestick Chart")
         try:
-            # Using Plotly Graph Objects to create a candlestick chart
             fig_candle = go.Figure(data=[go.Candlestick(
                 x=data.index,
                 open=data['Open'],
@@ -471,8 +480,3 @@ def main():
 if __name__ == "__main__":
     main()
     logging.info("Application started.")
-
-# =============================================================================
-# EXTRA CODE LINES (Optional placeholders or future enhancements)
-# =============================================================================
-# Additional code or placeholder comments can be added below.
