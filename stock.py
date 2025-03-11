@@ -154,31 +154,32 @@ def additional_interactive_features(data):
     # Recent 30-day prices
     features['recent_table'] = data.tail(30)
     
-    # Ensure the 'Volume' column is a one-dimensional Series:
-    vol = data['Volume']
-    if isinstance(vol, pd.DataFrame):
-        vol = vol.squeeze(axis=1)
-    vol_numeric = pd.to_numeric(vol, errors='coerce').fillna(0)
-    # Work on a copy so as not to affect original data
-    data_copy = data.copy()
-    data_copy['Volume'] = vol_numeric
-    # Reset index and force the Volume column to a list
-    df_reset = data_copy.reset_index()
-    df_reset['Volume'] = df_reset['Volume'].tolist()
-    fig_volume = px.bar(df_reset, x='Date', y='Volume', title="Volume Chart")
+    # Handle Volume column:
+    if 'Volume' not in data.columns:
+        data['Volume'] = 0
+    else:
+        vol = data['Volume']
+        if isinstance(vol, pd.DataFrame):
+            vol = vol.squeeze(axis=1)
+        vol_numeric = pd.to_numeric(vol, errors='coerce').fillna(0)
+        data = data.copy()  # Work on a copy
+        data['Volume'] = vol_numeric
+    
+    # Build Volume Chart (no .tolist() needed)
+    fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
     features['volume_chart'] = fig_volume
 
     # 20-Day Moving Average Chart
-    data_copy['MA20'] = data_copy['Close'].rolling(window=20).mean()
+    data['MA20'] = data['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
-    fig_ma.add_trace(go.Scatter(x=data_copy.index, y=data_copy['MA20'], mode='lines', name='MA20', line=dict(color='red')))
+    fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
 
     # 20-Day Volatility Chart (rolling standard deviation)
-    data_copy['Volatility'] = data_copy['Close'].rolling(window=20).std()
+    data['Volatility'] = data['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
-    fig_vol.add_trace(go.Scatter(x=data_copy.index, y=data_copy['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
+    fig_vol.add_trace(go.Scatter(x=data.index, y=data['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
 
@@ -224,7 +225,7 @@ def main():
     show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
-    # Tabs for Different Sections
+    # Tabs for Sections
     tabs = st.tabs([
         "📊 Dashboard", 
         "📈 Charts", 
@@ -249,7 +250,7 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # News and Sentiment Analysis
+    # News & Sentiment Analysis
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
