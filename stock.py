@@ -271,7 +271,7 @@ def main():
     if pd.isna(closing_price):
         closing_display = "N/A"
     else:
-        closing_display = f"${float(closing_price):.2f}"
+        closing_display = f"${float(closing_price):}"
 except Exception as e:
     closing_display = "N/A"
     st.error(f"Error retrieving closing price: {e}")
