@@ -33,7 +33,11 @@ nltk.download('vader_lexicon', quiet=True)
 # =============================================================================
 
 def fetch_news(ticker):
-    """Fetch dummy news articles for the given ticker."""
+    """
+    Fetch news articles for the given ticker.
+    For demonstration, return dummy news data.
+    In production, integrate with a real news API.
+    """
     dummy_news = [
         {"title": f"{ticker} hits record high in US markets", 
          "content": f"The stock {ticker} has reached a record high in the US market due to strong earnings and positive investor sentiment. Analysts are optimistic about the growth prospects."},
@@ -46,19 +50,20 @@ def fetch_news(ticker):
     return dummy_news
 
 def sentiment_analysis(news_items):
-    """Compute average sentiment score using VADER."""
+    """
+    Compute the average sentiment score of provided news items using VADER.
+    Returns a compound sentiment score.
+    """
     analyzer = SentimentIntensityAnalyzer()
-    scores = []
-    for article in news_items:
-        text = article.get("content", "")
-        score = analyzer.polarity_scores(text)["compound"]
-        scores.append(score)
+    scores = [analyzer.polarity_scores(article.get("content", ""))["compound"] for article in news_items]
     avg_score = np.mean(scores) if scores else 0.0
     logging.info("Calculated average sentiment score: %f", avg_score)
     return avg_score
 
 def summarize_text(text, sentences_count=2):
-    """Summarize text using TextRank from sumy."""
+    """
+    Summarize text using TextRank algorithm from sumy.
+    """
     parser = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = TextRankSummarizer()
     summary = summarizer(parser.document, sentences_count)
@@ -67,7 +72,9 @@ def summarize_text(text, sentences_count=2):
     return summary_text
 
 def get_news_summaries(news_items):
-    """Generate a DataFrame with news titles and summaries."""
+    """
+    Create a DataFrame containing news titles and summaries.
+    """
     summaries = []
     for article in news_items:
         title = article.get("title", "No Title")
@@ -79,7 +86,9 @@ def get_news_summaries(news_items):
     return df
 
 def forecast_prophet(data, forecast_days):
-    """Forecast using Prophet."""
+    """
+    Forecast future stock prices using the Prophet model.
+    """
     df = data.reset_index()[['Date', 'Close']].rename(columns={"Date": "ds", "Close": "y"})
     model = Prophet(daily_seasonality=True)
     model.fit(df)
@@ -90,7 +99,9 @@ def forecast_prophet(data, forecast_days):
     return forecast_values
 
 def forecast_arima(series, forecast_days):
-    """Forecast using ARIMA."""
+    """
+    Forecast future stock prices using an ARIMA model.
+    """
     model = ARIMA(series, order=(5,1,0))
     model_fit = model.fit()
     forecast = model_fit.forecast(steps=forecast_days)
@@ -98,10 +109,14 @@ def forecast_arima(series, forecast_days):
     return forecast.values
 
 def forecast_lstm(series, forecast_days):
-    """Forecast using LSTM."""
+    """
+    Forecast future stock prices using an LSTM model.
+    Uses the last 60 days as input to predict future prices.
+    """
     data_vals = series.values.reshape(-1, 1)
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaled_data = scaler.fit_transform(data_vals)
+    
     time_step = 60
     X, y = [], []
     for i in range(time_step, len(scaled_data)):
@@ -109,6 +124,7 @@ def forecast_lstm(series, forecast_days):
         y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
     X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    
     model = Sequential()
     model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1], 1)))
     model.add(LSTM(50))
@@ -116,6 +132,7 @@ def forecast_lstm(series, forecast_days):
     model.compile(loss='mean_squared_error', optimizer='adam')
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
     logging.info("LSTM model training complete")
+    
     temp_input = scaled_data[-time_step:].tolist()
     lst_output = []
     for i in range(forecast_days):
@@ -129,29 +146,41 @@ def forecast_lstm(series, forecast_days):
     return forecast_values
 
 def additional_interactive_features(data):
-    """Create extra interactive features and charts."""
+    """
+    Create extra interactive elements for deeper data exploration.
+    Returns a dictionary of data tables and Plotly figures.
+    """
     features = {}
     # Recent 30-day prices
     features['recent_table'] = data.tail(30)
-    # Volume Chart
+    
+    # Ensure the 'Volume' column is numeric
+    data['Volume'] = pd.to_numeric(data['Volume'], errors='coerce').fillna(0)
+    
+    # Volume Chart using Plotly
     fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
     features['volume_chart'] = fig_volume
-    # 20-Day Moving Average
+
+    # 20-Day Moving Average Chart
     data['MA20'] = data['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
     fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
-    # 20-Day Volatility
+
+    # 20-Day Volatility Chart (rolling standard deviation)
     data['Volatility'] = data['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
     fig_vol.add_trace(go.Scatter(x=data.index, y=data['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
+
     return features
 
 def display_about():
-    """Display information in the sidebar."""
+    """
+    Display about information in the sidebar.
+    """
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info("""
     StockGPT is an advanced tool for analyzing and forecasting stock prices.
@@ -160,7 +189,9 @@ def display_about():
     """)
 
 def display_feedback():
-    """Display a feedback form in the sidebar."""
+    """
+    Display a feedback form in the sidebar.
+    """
     st.sidebar.markdown("## Feedback")
     feedback = st.sidebar.text_area("Your Feedback:")
     if st.sidebar.button("Submit Feedback"):
@@ -211,7 +242,7 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # News & Sentiment
+    # News & Sentiment Analysis
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
@@ -220,13 +251,13 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            closing_price = data['Close'].iloc[-1]
+            # Use .values to get a scalar closing price
+            closing_price = data['Close'].values[-1]
             if pd.isna(closing_price):
                 closing_display = "N/A"
             else:
                 try:
                     price_value = float(closing_price)
-                    # Use str.format to format the value to two decimals.
                     closing_display = "${:.2f}".format(price_value)
                 except Exception:
                     closing_display = "N/A"
@@ -323,7 +354,7 @@ def main():
         })
         st.success(f"Best Forecast Model: **{best_model}** with MAE: {errors[best_model]:.2f}")
         st.dataframe(forecast_df.style.format({
-            "Forecasted Price": "${:,.2f}",
+            "Forecasted Price": "${:,.2f}", 
             "Adjusted Forecast Price": "${:,.2f}"
         }))
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"],
@@ -406,10 +437,6 @@ def main():
     st.markdown("### Future Enhancements")
     st.write("More features and interactive elements will be added in future updates.")
     st.markdown("### End of Dashboard")
-
-# =============================================================================
-# Run the Application
-# =============================================================================
 
 if __name__ == "__main__":
     main()
