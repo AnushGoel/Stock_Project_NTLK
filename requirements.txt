@@ -2,10 +2,10 @@ streamlit
 yfinance
 pandas
 numpy
-altair
 nltk
 sumy
 prophet
 statsmodels
 scikit-learn
 tensorflow
+plotly
