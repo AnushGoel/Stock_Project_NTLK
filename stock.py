@@ -117,9 +117,9 @@ def forecast_lstm(series, forecast_days):
     Forecast future stock prices using an LSTM model.
     Uses the last 60 days as input to predict future prices.
     """
-    data = series.values.reshape(-1, 1)
+    data_vals = series.values.reshape(-1, 1)
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_data = scaler.fit_transform(data)
+    scaled_data = scaler.fit_transform(data_vals)
     
     time_step = 60
     X, y = [], []
@@ -238,8 +238,7 @@ def main():
         st.error(f"Error fetching data: {e}")
         return
     data_load_state.success("Data fetched successfully!")
-    # Ensure the index is named for Plotly charts
-    data.index.name = "Date"
+    data.index.name = "Date"  # Ensure the index is named for Plotly charts
     
     # ---------------------------
     # News and Sentiment Analysis
@@ -255,12 +254,16 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            # Using iloc to get the last available closing price
             closing_price = data['Close'].iloc[-1]
+            # Check if closing_price is a number and not NaN
+            if pd.isna(closing_price):
+                closing_display = "N/A"
+            else:
+                closing_display = f"${closing_price:.2f}"
         except Exception as e:
-            closing_price = None
+            closing_display = "N/A"
             st.error("Error retrieving closing price.")
-        st.metric("Today's Closing Price", f"${closing_price:.2f}" if closing_price is not None else "N/A")
+        st.metric("Today's Closing Price", closing_display)
         st.metric("News Sentiment", f"{sentiment_score:.2f}")
         recommendation = "🟢 Buy" if sentiment_score > 0 else ("🔴 Hold/Sell" if sentiment_score < 0 else "⚪ Neutral")
         st.write("Investment Recommendation:", recommendation)
