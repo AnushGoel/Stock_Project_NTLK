@@ -11,55 +11,60 @@ from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
-import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.text_rank import TextRankSummarizer
+import nltk
 
 nltk.download('vader_lexicon', quiet=True)
 
 # ---------------------------
-# Sentiment Analysis Functions
+# Helper Functions
 # ---------------------------
 def fetch_news(ticker, limit=15):
     stock = yf.Ticker(ticker)
-    news_items = stock.news[:limit]
-    return news_items
+    return stock.news[:limit]
 
 def sentiment_analysis(news):
     analyzer = SentimentIntensityAnalyzer()
-    sentiments = [analyzer.polarity_scores(item['title'])['compound'] for item in news]
-    return np.mean(sentiments)
-
-# ---------------------------
-# Text Summarization (Sumy)
-# ---------------------------
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.text_rank import TextRankSummarizer
+    sentiments = [
+        analyzer.polarity_scores(item['title'])['compound']
+        for item in news if 'title' in item
+    ]
+    return np.mean(sentiments) if sentiments else 0.0
 
 def summarize_text(text, sentences=2):
     parser = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = TextRankSummarizer()
     summary = summarizer(parser.document, sentences)
-    return ' '.join([str(sent) for sent in summary])
+    return " ".join([str(s) for s in summary])
 
-# ---------------------------
-# Forecasting Functions
-# ---------------------------
+def get_news_summaries(news_items):
+    summaries = []
+    for item in news_items:
+        title = item.get('title', 'No Title')
+        content = item.get('summary', title)
+        try:
+            summary = summarize_text(content)
+        except:
+            summary = content
+        summaries.append({"Title": title, "Summary": summary})
+    return pd.DataFrame(summaries)
+
 def forecast_prophet(data, days):
-    df = data.reset_index().rename(columns={"Date": "ds", "Close": "y"})
-    model = Prophet()
+    df = data.reset_index().rename(columns={"Date":"ds", "Close":"y"})
+    model = Prophet(daily_seasonality=True)
     model.fit(df)
-    future = model.make_future_dataframe(days)
+    future = model.make_future_dataframe(periods=days)
     forecast = model.predict(future)
-    return forecast[['ds', 'yhat']].tail(days)['yhat'].values
+    return forecast['yhat'].tail(days).values
 
 def forecast_arima(series, days):
     model = ARIMA(series, order=(5,1,0))
-    fit = model.fit()
-    return fit.forecast(days)
+    model_fit = model.fit()
+    forecast = model_fit.forecast(days)
+    return forecast
 
 def forecast_lstm(data, days, seq_len=60):
     scaler = MinMaxScaler()
@@ -71,23 +76,23 @@ def forecast_lstm(data, days, seq_len=60):
     X, y = np.array(X), np.array(y)
     X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
-    model = Sequential([LSTM(50, return_sequences=True, input_shape=(X.shape[1],1)),
-                        LSTM(50),
-                        Dense(1)])
+    model = Sequential()
+    model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1],1)))
+    model.add(LSTM(50))
+    model.add(Dense(1))
     model.compile(optimizer='adam', loss='mse')
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
 
-    preds = []
     input_seq = scaled[-seq_len:].reshape(1, seq_len, 1)
+    preds = []
     for _ in range(days):
         pred = model.predict(input_seq, verbose=0)
         preds.append(pred[0,0])
-        input_seq = np.roll(input_seq, -1)
-        input_seq[0,-1,0] = pred
+        input_seq = np.append(input_seq[:,1:,:],[[pred]], axis=1)
     return scaler.inverse_transform(np.array(preds).reshape(-1,1)).flatten()
 
 # ---------------------------
-# Streamlit UI
+# Streamlit UI Setup
 # ---------------------------
 st.set_page_config(page_title="Enhanced StockGPT 🚀", layout="wide")
 st.title("📈 Enhanced StockGPT with Sentiment & News Summaries")
@@ -101,17 +106,15 @@ tabs = st.tabs(["Dashboard", "Charts", "Forecast", "News Summaries"])
 
 data = yf.download(ticker, start=start_date, end=end_date)
 
-# Sentiment Adjustment
 news_items = fetch_news(ticker)
 sentiment_score = sentiment_analysis(news_items)
 sentiment_factor = 1 + (sentiment_score * 0.05)
 
 with tabs[0]:
     st.header(f"{ticker} Overview")
-    st.metric("News Sentiment Score", f"{sentiment_score:.2f}", 
-              delta_color="inverse")
-    recommendation = "🟢 Positive Outlook" if sentiment_score > 0 else "🔴 Caution Advised"
-    st.write(f"Investment Recommendation: {recommendation}")
+    st.metric("News Sentiment Score", f"{sentiment_score:.2f}")
+    recommendation = "🟢 Buy" if sentiment_score > 0 else "🔴 Hold/Sell"
+    st.info(f"Investment Recommendation: {recommendation}")
 
 with tabs[1]:
     st.header("📊 Historical Prices")
@@ -126,14 +129,15 @@ with tabs[2]:
     arima_pred = forecast_arima(data['Close'], forecast_days)
     lstm_pred = forecast_lstm(data['Close'], forecast_days)
 
-    actual_recent = data['Close'][-forecast_days:].values
+    recent_actual = data['Close'][-forecast_days:].values
     errors = {
-        "Prophet": mean_absolute_error(actual_recent, prophet_pred),
-        "ARIMA": mean_absolute_error(actual_recent, arima_pred),
-        "LSTM": mean_absolute_error(actual_recent, lstm_pred)
+        "Prophet": mean_absolute_error(recent_actual, prophet_pred),
+        "ARIMA": mean_absolute_error(recent_actual, arima_pred),
+        "LSTM": mean_absolute_error(recent_actual, lstm_pred)
     }
-    best_model_name = min(errors, key=errors.get)
-    best_forecast = {"Prophet": prophet_pred, "ARIMA": arima_pred, "LSTM": lstm_pred}[best_model_name]
+
+    best_model = min(errors, key=errors.get)
+    best_forecast = {"Prophet":prophet_pred,"ARIMA":arima_pred,"LSTM":lstm_pred}[best_model]
     adjusted_forecast = best_forecast * sentiment_factor
 
     forecast_dates = pd.date_range(end=end_date, periods=forecast_days)
@@ -142,19 +146,12 @@ with tabs[2]:
         "Forecasted Price": adjusted_forecast.round(2)
     })
 
-    st.success(f"Best Model: **{best_model_name}** (Adjusted by Sentiment)")
+    st.success(f"Best Model: **{best_model}** (Adjusted for sentiment)")
     st.dataframe(forecast_df.style.format({"Forecasted Price": "${:,.2f}"}))
 
 with tabs[3]:
-    st.header("📰 News Summaries")
-    summaries_list = []
-    for item in news_items:
-        title = item.get('title', '')
-        summary = summarize_text(item.get('summary', title))
-        summaries_list.append({"Title": title, "Summary": summary})
-
-    news_df = pd.DataFrame(summaries_list)
-    for idx, row in news_summary_df.iterrows():
+    st.header("📰 Top News Summaries")
+    news_df = get_news_summaries(news_items)
+    for idx, row in news_df.iterrows():
         st.subheader(f"{idx+1}. {row['Title']}")
         st.write(row['Summary'])
-
