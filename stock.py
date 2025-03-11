@@ -158,26 +158,27 @@ def additional_interactive_features(data):
     vol = data['Volume']
     if isinstance(vol, pd.DataFrame):
         vol = vol.squeeze(axis=1)
-    # Convert to numeric and fill missing values
     vol_numeric = pd.to_numeric(vol, errors='coerce').fillna(0)
-    data = data.copy()  # work on a copy
-    data['Volume'] = vol_numeric
-    
-    # Volume Chart using Plotly
-    fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
+    # Work on a copy so as not to affect original data
+    data_copy = data.copy()
+    data_copy['Volume'] = vol_numeric
+    # Reset index and force the Volume column to a list
+    df_reset = data_copy.reset_index()
+    df_reset['Volume'] = df_reset['Volume'].tolist()
+    fig_volume = px.bar(df_reset, x='Date', y='Volume', title="Volume Chart")
     features['volume_chart'] = fig_volume
 
     # 20-Day Moving Average Chart
-    data['MA20'] = data['Close'].rolling(window=20).mean()
+    data_copy['MA20'] = data_copy['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
-    fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
+    fig_ma.add_trace(go.Scatter(x=data_copy.index, y=data_copy['MA20'], mode='lines', name='MA20', line=dict(color='red')))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
 
     # 20-Day Volatility Chart (rolling standard deviation)
-    data['Volatility'] = data['Close'].rolling(window=20).std()
+    data_copy['Volatility'] = data_copy['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
-    fig_vol.add_trace(go.Scatter(x=data.index, y=data['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
+    fig_vol.add_trace(go.Scatter(x=data_copy.index, y=data_copy['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
 
@@ -257,7 +258,6 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            # Retrieve a scalar closing price using .values
             closing_price = data['Close'].values[-1]
             if pd.isna(closing_price):
                 closing_display = "N/A"
