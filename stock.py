@@ -198,7 +198,7 @@ def display_feedback():
     feedback = st.sidebar.text_area("Your Feedback:")
     if st.sidebar.button("Submit Feedback"):
         st.sidebar.success("Thank you for your feedback!")
-        # Optionally, log or store the feedback
+        # Optionally log or store the feedback
 
 # =============================================================================
 # Main Application
@@ -238,7 +238,8 @@ def main():
         st.error(f"Error fetching data: {e}")
         return
     data_load_state.success("Data fetched successfully!")
-    data.index.name = "Date"  # Ensure the index is named for Plotly charts
+    # Ensure the index is named for Plotly charts
+    data.index.name = "Date"
     
     # ---------------------------
     # News and Sentiment Analysis
@@ -254,11 +255,12 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            closing_price = data['Close'][-1]
+            # Using iloc to get the last available closing price
+            closing_price = data['Close'].iloc[-1]
         except Exception as e:
             closing_price = None
             st.error("Error retrieving closing price.")
-        st.metric("Today's Closing Price", f"${closing_price:.2f}" if closing_price else "N/A")
+        st.metric("Today's Closing Price", f"${closing_price:.2f}" if closing_price is not None else "N/A")
         st.metric("News Sentiment", f"{sentiment_score:.2f}")
         recommendation = "🟢 Buy" if sentiment_score > 0 else ("🔴 Hold/Sell" if sentiment_score < 0 else "⚪ Neutral")
         st.write("Investment Recommendation:", recommendation)
@@ -268,12 +270,22 @@ def main():
     # ---------------------------
     with tabs[1]:
         st.header("Historical Stock Performance")
-        chart_data = data.reset_index()[['Date', 'Close']].dropna()
+        # Add a slider to filter chart data by closing price range
+        price_min = float(data['Close'].min())
+        price_max = float(data['Close'].max())
+        selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
+        
+        filtered_data = data[(data['Close'] >= selected_range[0]) & (data['Close'] <= selected_range[1])]
+        chart_data = filtered_data.reset_index()[['Date', 'Close']].dropna()
+        
         if chart_data.empty:
-            st.error("No chart data available.")
+            st.error("No chart data available for the selected price range.")
         else:
-            fig_line = px.line(chart_data, x="Date", y="Close", title="Closing Prices Over Time", labels={"Close": "Closing Price"})
-            st.plotly_chart(fig_line, use_container_width=True)
+            try:
+                fig_line = px.line(chart_data, x="Date", y="Close", title="Closing Prices Over Time", labels={"Close": "Closing Price"})
+                st.plotly_chart(fig_line, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error rendering chart: {e}")
         
         # Additional interactive features
         features = additional_interactive_features(data.copy())
@@ -343,8 +355,11 @@ def main():
         
         # Interactive forecast comparison chart using Plotly
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"], var_name="Type", value_name="Price")
-        fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison")
-        st.plotly_chart(fig_forecast, use_container_width=True)
+        try:
+            fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison")
+            st.plotly_chart(fig_forecast, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error rendering forecast chart: {e}")
     
     # ---------------------------
     # News Impact Tab: Summaries of Relevant News
@@ -402,8 +417,11 @@ def main():
             corr = detailed_data.corr()
             st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
             st.subheader("Distribution of Closing Prices")
-            fig_hist = px.histogram(detailed_data.reset_index(), x="Close", nbins=30, title="Distribution of Closing Prices")
-            st.plotly_chart(fig_hist, use_container_width=True)
+            try:
+                fig_hist = px.histogram(detailed_data.reset_index(), x="Close", nbins=30, title="Distribution of Closing Prices")
+                st.plotly_chart(fig_hist, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error rendering histogram: {e}")
     
     # ---------------------------
     # Settings Tab: Application Options
