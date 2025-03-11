@@ -223,7 +223,7 @@ def main():
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
     # Create multiple tabs for different sections
-    tabs = st.tabs(["📊 Dashboard", "📈 Charts", "🚀 Forecast", "📰 News Impact", "💡 Insights", "📌 Detailed Analysis", "⚙️ Settings"])
+    tabs = st.tabs(["📊 Dashboard", "📈 Charts", "🕯️ Candlestick", "🚀 Forecast", "📰 News Impact", "💡 Insights", "📌 Detailed Analysis", "⚙️ Settings"])
     
     # ---------------------------
     # Data Acquisition
@@ -245,7 +245,6 @@ def main():
     # ---------------------------
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
-    # Adjust forecast factor: >1 if positive sentiment, <1 if negative, 1 if neutral.
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
     # ---------------------------
@@ -255,12 +254,15 @@ def main():
         st.header(f"{ticker} Overview")
         try:
             closing_price = data['Close'].iloc[-1]
-            # Check if closing_price is numeric and not NaN
             if pd.isna(closing_price):
                 closing_display = "N/A"
             else:
-                closing_display = f"${float(closing_price):.2f}"
-        except Exception as e:
+                try:
+                    price_value = float(closing_price)
+                    closing_display = f"${price_value:.2f}"
+                except Exception:
+                    closing_display = "N/A"
+        except Exception:
             closing_display = "N/A"
             st.error("Error retrieving closing price.")
         st.metric("Today's Closing Price", closing_display)
@@ -269,11 +271,10 @@ def main():
         st.write("Investment Recommendation:", recommendation)
     
     # ---------------------------
-    # Charts Tab: Historical Performance and Interactive Features
+    # Charts Tab: Historical Performance (Line Chart & Price Range Filter)
     # ---------------------------
     with tabs[1]:
         st.header("Historical Stock Performance")
-        # Add a slider to filter chart data by closing price range
         price_min = float(data['Close'].min())
         price_max = float(data['Close'].max())
         selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
@@ -305,9 +306,29 @@ def main():
             st.plotly_chart(features['vol_chart'], use_container_width=True)
     
     # ---------------------------
-    # Forecast Tab: Price Forecasting Using Multiple Models
+    # Candlestick Tab: Display Candlestick Chart
     # ---------------------------
     with tabs[2]:
+        st.header("Candlestick Chart")
+        try:
+            # Using Plotly Graph Objects to create a candlestick chart
+            fig_candle = go.Figure(data=[go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name=ticker
+            )])
+            fig_candle.update_layout(title=f"{ticker} Candlestick Chart", xaxis_title="Date", yaxis_title="Price")
+            st.plotly_chart(fig_candle, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error rendering candlestick chart: {e}")
+    
+    # ---------------------------
+    # Forecast Tab: Price Forecasting Using Multiple Models
+    # ---------------------------
+    with tabs[3]:
         st.header("Stock Price Forecast")
         st.write("Forecasting using Prophet, ARIMA, and LSTM models.")
         try:
@@ -326,11 +347,10 @@ def main():
             st.error(f"LSTM forecasting failed: {e}")
             lstm_pred = np.zeros(forecast_days)
         
-        # Use recent actual data (if available) to compute model errors
         if len(data['Close']) >= forecast_days:
             actual_recent = data['Close'][-forecast_days:].values
         else:
-            actual_recent = prophet_pred  # fallback if not enough data
+            actual_recent = prophet_pred
         
         errors = {
             "Prophet": mean_absolute_error(actual_recent, prophet_pred),
@@ -340,7 +360,6 @@ def main():
         best_model = min(errors, key=errors.get)
         best_forecast = {"Prophet": prophet_pred, "ARIMA": arima_pred, "LSTM": lstm_pred}[best_model]
         
-        # Adjust forecast based on news sentiment
         adjusted_forecast = best_forecast * sentiment_factor
         
         forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
@@ -356,7 +375,6 @@ def main():
             "Adjusted Forecast Price": "${:,.2f}"
         }))
         
-        # Interactive forecast comparison chart using Plotly
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"], var_name="Type", value_name="Price")
         try:
             fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison")
@@ -367,7 +385,7 @@ def main():
     # ---------------------------
     # News Impact Tab: Summaries of Relevant News
     # ---------------------------
-    with tabs[3]:
+    with tabs[4]:
         st.header("News Summaries Impacting the Stock")
         news_df = get_news_summaries(news_items)
         if not news_df.empty:
@@ -381,7 +399,7 @@ def main():
     # ---------------------------
     # Insights Tab: Analysis, Recommendations & Interactive Q&A
     # ---------------------------
-    with tabs[4]:
+    with tabs[5]:
         st.header("Insights & Recommendations")
         st.markdown("""
         **Market Analysis:**
@@ -406,7 +424,7 @@ def main():
     # ---------------------------
     # Detailed Analysis Tab: In-Depth Data Exploration
     # ---------------------------
-    with tabs[5]:
+    with tabs[6]:
         st.header("Detailed Data Analysis")
         st.markdown("Explore various aspects of the stock data.")
         analysis_start = st.date_input("Analysis Start Date", start_date)
@@ -429,7 +447,7 @@ def main():
     # ---------------------------
     # Settings Tab: Application Options
     # ---------------------------
-    with tabs[6]:
+    with tabs[7]:
         st.header("Application Settings")
         st.markdown("Adjust application parameters and view raw data.")
         if st.checkbox("Show raw data"):
