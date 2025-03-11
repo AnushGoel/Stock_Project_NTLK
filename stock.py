@@ -267,17 +267,14 @@ def main():
                 closing_display = "N/A"
             else:
                 try:
-    closing_price = data['Close'].iloc[-1]
-    if pd.isna(closing_price):
-        closing_display = "N/A"
-    else:
-        closing_display = f"${float(closing_price):}"
-except Exception as e:
-    closing_display = "N/A"
-    st.error(f"Error retrieving closing price: {e}")
-
-st.metric("Today's Closing Price", closing_display)
-
+                    price_value = float(closing_price)
+                    # Format with two decimal places
+                    closing_display = f"${price_value:.2f}"
+                except Exception:
+                    closing_display = "N/A"
+        except Exception as e:
+            closing_display = "N/A"
+            st.error(f"Error retrieving closing price: {e}")
         st.metric("Today's Closing Price", closing_display)
         st.metric("News Sentiment", f"{sentiment_score:.2f}")
         recommendation = "🟢 Buy" if sentiment_score > 0 else ("🔴 Hold/Sell" if sentiment_score < 0 else "⚪ Neutral")
