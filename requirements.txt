@@ -1,12 +1,11 @@
 streamlit
 yfinance
+pandas
+numpy
 altair
-tensorflow
-prophet
 nltk
 sumy
+prophet
 statsmodels
 scikit-learn
-numpy
-pandas
-requests
+tensorflow
