@@ -1,9 +1,15 @@
+# main.py
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
-import datetime
 import altair as alt
+import datetime
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.text_rank import TextRankSummarizer
 from prophet import Prophet
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error
@@ -11,165 +17,428 @@ from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.text_rank import TextRankSummarizer
-import nltk
+import logging
+import warnings
 
+# Suppress warnings and set logging configuration
+warnings.filterwarnings("ignore")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Download NLTK VADER lexicon for sentiment analysis
 nltk.download('vader_lexicon', quiet=True)
 
-# ---------------------------
+# =============================================================================
 # Helper Functions
-# ---------------------------
-def fetch_news(ticker, limit=15):
-    stock = yf.Ticker(ticker)
-    return stock.news[:limit]
+# =============================================================================
 
-def sentiment_analysis(news):
-    analyzer = SentimentIntensityAnalyzer()
-    sentiments = [
-        analyzer.polarity_scores(item['title'])['compound']
-        for item in news if 'title' in item
+def fetch_news(ticker):
+    """
+    Fetch news articles for the given ticker.
+    For this demo, we return dummy news data relevant to US markets.
+    In production, integrate with a real news API.
+    """
+    dummy_news = [
+        {"title": f"{ticker} hits record high in US markets", 
+         "content": f"The stock {ticker} has reached a record high in the US market due to strong earnings and positive investor sentiment. Analysts are optimistic about the growth prospects."},
+        {"title": f"Concerns over {ticker}'s supply chain", 
+         "content": f"Recent reports indicate potential disruptions in the supply chain for {ticker}, which could affect future performance and lead to a downturn in investor confidence."},
+        {"title": f"{ticker} announces new product line", 
+         "content": f"{ticker} is set to launch a new product line that is expected to boost sales and improve market share across the US and global markets."},
     ]
-    return np.mean(sentiments) if sentiments else 0.0
+    logging.info("Fetched dummy news for ticker: %s", ticker)
+    return dummy_news
 
-def summarize_text(text, sentences=2):
+def sentiment_analysis(news_items):
+    """
+    Compute the average sentiment score of provided news items using VADER.
+    Returns a compound sentiment score.
+    """
+    analyzer = SentimentIntensityAnalyzer()
+    scores = []
+    for article in news_items:
+        text = article.get("content", "")
+        score = analyzer.polarity_scores(text)["compound"]
+        scores.append(score)
+    avg_score = np.mean(scores) if scores else 0.0
+    logging.info("Calculated average sentiment score: %f", avg_score)
+    return avg_score
+
+def summarize_text(text, sentences_count=2):
+    """
+    Summarize text using TextRank algorithm from sumy.
+    """
     parser = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = TextRankSummarizer()
-    summary = summarizer(parser.document, sentences)
-    return " ".join([str(s) for s in summary])
+    summary = summarizer(parser.document, sentences_count)
+    summary_text = " ".join(str(sentence) for sentence in summary)
+    logging.info("Summarized text: %s", summary_text)
+    return summary_text
 
 def get_news_summaries(news_items):
+    """
+    Create a DataFrame containing news titles and summaries.
+    """
     summaries = []
-    for item in news_items:
-        title = item.get('title', 'No Title')
-        content = item.get('summary', title)
-        try:
-            summary = summarize_text(content)
-        except:
-            summary = content
+    for article in news_items:
+        title = article.get("title", "No Title")
+        content = article.get("content", "")
+        summary = summarize_text(content, sentences_count=2)
         summaries.append({"Title": title, "Summary": summary})
-    return pd.DataFrame(summaries)
+    df = pd.DataFrame(summaries)
+    logging.info("Generated news summaries DataFrame with %d records", len(df))
+    return df
 
-def forecast_prophet(data, days):
-    df = data.reset_index().rename(columns={"Date": "ds", "Close": "y"})
-    df = df[['ds', 'y']].dropna()
-
-    # Explicitly ensure numeric values
-    df['y'] = pd.to_numeric(df['y'], errors='coerce')
-    df.dropna(inplace=True)
-
+def forecast_prophet(data, forecast_days):
+    """
+    Forecast future stock prices using the Prophet model.
+    """
+    df = data.reset_index()[['Date', 'Close']].rename(columns={"Date": "ds", "Close": "y"})
     model = Prophet(daily_seasonality=True)
     model.fit(df)
-
-    future = model.make_future_dataframe(periods=days)
+    future = model.make_future_dataframe(periods=forecast_days)
     forecast = model.predict(future)
+    forecast_values = forecast['yhat'][-forecast_days:].values
+    logging.info("Prophet forecast for %d days computed", forecast_days)
+    return forecast_values
 
-    return forecast[['ds', 'yhat']].tail(days)['yhat'].values
-
-
-def forecast_arima(series, days):
+def forecast_arima(series, forecast_days):
+    """
+    Forecast future stock prices using an ARIMA model.
+    """
     model = ARIMA(series, order=(5,1,0))
     model_fit = model.fit()
-    forecast = model_fit.forecast(days)
-    return forecast
+    forecast = model_fit.forecast(steps=forecast_days)
+    logging.info("ARIMA forecast for %d days computed", forecast_days)
+    return forecast.values
 
-def forecast_lstm(data, days, seq_len=60):
-    scaler = MinMaxScaler()
-    scaled = scaler.fit_transform(data.values.reshape(-1, 1))
+def forecast_lstm(series, forecast_days):
+    """
+    Forecast future stock prices using an LSTM model.
+    Uses the last 60 days as input to predict future prices.
+    """
+    data = series.values.reshape(-1, 1)
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(data)
+    
+    time_step = 60
     X, y = [], []
-    for i in range(seq_len, len(scaled)):
-        X.append(scaled[i-seq_len:i, 0])
-        y.append(scaled[i, 0])
+    for i in range(time_step, len(scaled_data)):
+        X.append(scaled_data[i-time_step:i, 0])
+        y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
     X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-
+    
     model = Sequential()
-    model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1],1)))
+    model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1], 1)))
     model.add(LSTM(50))
     model.add(Dense(1))
-    model.compile(optimizer='adam', loss='mse')
+    model.compile(loss='mean_squared_error', optimizer='adam')
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
-
-    input_seq = scaled[-seq_len:].reshape(1, seq_len, 1)
-    preds = []
-    for _ in range(days):
-        pred = model.predict(input_seq, verbose=0)
-        preds.append(pred[0,0])
-        input_seq = np.append(input_seq[:,1:,:],[[pred]], axis=1)
-    return scaler.inverse_transform(np.array(preds).reshape(-1,1)).flatten()
-
-# ---------------------------
-# Streamlit UI Setup
-# ---------------------------
-st.set_page_config(page_title="Enhanced StockGPT 🚀", layout="wide")
-st.title("📈 Enhanced StockGPT with Sentiment & News Summaries")
-
-ticker = st.sidebar.text_input("Enter Stock Ticker:", "AAPL").upper()
-start_date = st.sidebar.date_input("Start Date:", datetime.date.today() - datetime.timedelta(365))
-end_date = datetime.date.today()
-forecast_days = st.sidebar.slider("Forecast Days:", 7, 60, 14)
-
-tabs = st.tabs(["Dashboard", "Charts", "Forecast", "News Summaries"])
-
-data = yf.download(ticker, start=start_date, end=end_date)
-
-news_items = fetch_news(ticker)
-sentiment_score = sentiment_analysis(news_items)
-sentiment_factor = 1 + (sentiment_score * 0.05)
-
-with tabs[0]:
-    st.header(f"{ticker} Overview")
-    st.metric("News Sentiment Score", f"{sentiment_score:.2f}")
-    recommendation = "🟢 Buy" if sentiment_score > 0 else "🔴 Hold/Sell"
-    st.info(f"Investment Recommendation: {recommendation}")
-
-with tabs[1]:
-    st.header("📊 Historical Prices")
+    logging.info("LSTM model training complete")
     
-    chart_data = data.reset_index()[['Date', 'Close']].dropna()
-    chart_data['Date'] = pd.to_datetime(chart_data['Date'])
+    temp_input = scaled_data[-time_step:].tolist()
+    lst_output = []
+    for i in range(forecast_days):
+        x_input = np.array(temp_input[-time_step:])
+        x_input = x_input.reshape(1, time_step, 1)
+        yhat = model.predict(x_input, verbose=0)
+        lst_output.append(yhat[0][0])
+        temp_input.append([yhat[0][0]])
+    forecast_values = scaler.inverse_transform(np.array(lst_output).reshape(-1, 1)).flatten()
+    logging.info("LSTM forecast for %d days computed", forecast_days)
+    return forecast_values
 
-    chart = alt.Chart(chart_data).mark_line().encode(
-        x=alt.X('Date:T', title='Date'),
-        y=alt.Y('Close:Q', title='Closing Price (USD)', axis=alt.Axis(format="$,.2f")),
-        tooltip=['Date:T', alt.Tooltip('Close:Q', format="$,.2f")]
-    ).properties(height=400, width=700, title=f"{ticker} Closing Prices Over Time")
+def additional_interactive_features(data):
+    """
+    Create extra interactive elements for deeper data exploration.
+    Returns a dictionary of charts and data tables.
+    """
+    features = {}
+    # Recent 30-day prices
+    recent_data = data.tail(30)
+    features['recent_table'] = recent_data
 
-    st.altair_chart(chart, use_container_width=True)
+    # Volume Chart
+    chart_volume = alt.Chart(data.reset_index()).mark_bar().encode(
+        x='Date:T', y='Volume:Q', tooltip=['Date:T', 'Volume']
+    ).properties(width=700, height=300)
+    features['volume_chart'] = chart_volume
 
+    # 20-Day Moving Average
+    data['MA20'] = data['Close'].rolling(window=20).mean()
+    chart_ma = alt.Chart(data.reset_index()).mark_line(color='red').encode(
+        x='Date:T', y='MA20:Q', tooltip=['Date:T', 'MA20']
+    ).properties(width=700, height=300)
+    features['ma_chart'] = chart_ma
 
-with tabs[2]:
-    st.header("📉 Stock Price Forecast")
+    # 20-Day Volatility (rolling standard deviation)
+    data['Volatility'] = data['Close'].rolling(window=20).std()
+    chart_vol = alt.Chart(data.reset_index()).mark_line(color='orange').encode(
+        x='Date:T', y='Volatility:Q', tooltip=['Date:T', 'Volatility']
+    ).properties(width=700, height=300)
+    features['vol_chart'] = chart_vol
 
-    prophet_pred = forecast_prophet(data, forecast_days)
-    arima_pred = forecast_arima(data['Close'], forecast_days)
-    lstm_pred = forecast_lstm(data['Close'], forecast_days)
+    return features
 
-    recent_actual = data['Close'][-forecast_days:].values
-    errors = {
-        "Prophet": mean_absolute_error(recent_actual, prophet_pred),
-        "ARIMA": mean_absolute_error(recent_actual, arima_pred),
-        "LSTM": mean_absolute_error(recent_actual, lstm_pred)
-    }
+def display_about():
+    """
+    Display about information in the sidebar.
+    """
+    st.sidebar.markdown("## About StockGPT")
+    st.sidebar.info("""
+    StockGPT is an advanced tool for analyzing and forecasting stock prices.
+    It integrates historical data, news sentiment, and multiple forecasting models
+    to provide actionable insights and interactive visualizations.
+    """)
 
-    best_model = min(errors, key=errors.get)
-    best_forecast = {"Prophet":prophet_pred,"ARIMA":arima_pred,"LSTM":lstm_pred}[best_model]
-    adjusted_forecast = best_forecast * sentiment_factor
+def display_feedback():
+    """
+    Display a feedback form in the sidebar.
+    """
+    st.sidebar.markdown("## Feedback")
+    feedback = st.sidebar.text_area("Your Feedback:")
+    if st.sidebar.button("Submit Feedback"):
+        st.sidebar.success("Thank you for your feedback!")
+        # Here you could log or store the feedback
 
-    forecast_dates = pd.date_range(end=end_date, periods=forecast_days)
-    forecast_df = pd.DataFrame({
-        "Date": forecast_dates,
-        "Forecasted Price": adjusted_forecast.round(2)
-    })
+# =============================================================================
+# Main Application
+# =============================================================================
 
-    st.success(f"Best Model: **{best_model}** (Adjusted for sentiment)")
-    st.dataframe(forecast_df.style.format({"Forecasted Price": "${:,.2f}"}))
+def main():
+    # Configure Streamlit page
+    st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
+    display_about()
+    display_feedback()
+    
+    # Sidebar input widgets
+    ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
+    start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
+    end_date = datetime.date.today()
+    forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 14)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Advanced Options")
+    show_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
+    show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
+    show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
+    
+    # Create multiple tabs for different sections
+    tabs = st.tabs(["📊 Dashboard", "📈 Charts", "🚀 Forecast", "📰 News Impact", "💡 Insights", "📌 Detailed Analysis", "⚙️ Settings"])
+    
+    # ---------------------------
+    # Data Acquisition
+    # ---------------------------
+    data_load_state = st.info("Fetching stock data...")
+    try:
+        data = yf.download(ticker, start=start_date, end=end_date)
+        if data.empty:
+            st.error("No data found for ticker. Please check the ticker symbol and try again.")
+            return
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return
+    data_load_state.success("Data fetched successfully!")
+    
+    # ---------------------------
+    # News and Sentiment Analysis
+    # ---------------------------
+    news_items = fetch_news(ticker)
+    sentiment_score = sentiment_analysis(news_items)
+    # Adjust forecast factor: >1 if positive sentiment, <1 if negative, 1 if neutral.
+    sentiment_factor = 1 + (sentiment_score * 0.05)
+    
+    # ---------------------------
+    # Dashboard Tab: Overview
+    # ---------------------------
+    with tabs[0]:
+        st.header(f"{ticker} Overview")
+        try:
+            closing_price = data['Close'][-1]
+        except Exception as e:
+            closing_price = None
+            st.error("Error retrieving closing price.")
+        st.metric("Today's Closing Price", f"${closing_price:.2f}" if closing_price else "N/A")
+        st.metric("News Sentiment", f"{sentiment_score:.2f}")
+        recommendation = "🟢 Buy" if sentiment_score > 0 else ("🔴 Hold/Sell" if sentiment_score < 0 else "⚪ Neutral")
+        st.write("Investment Recommendation:", recommendation)
+    
+    # ---------------------------
+    # Charts Tab: Historical Performance and Interactive Features
+    # ---------------------------
+    with tabs[1]:
+        st.header("Historical Stock Performance")
+        chart_data = data.reset_index()[['Date', 'Close']].dropna()
+        chart = alt.Chart(chart_data).mark_line().encode(
+            x='Date:T', y='Close:Q', tooltip=['Date:T', 'Close']
+        ).properties(width=700, height=400)
+        st.altair_chart(chart, use_container_width=True)
+        
+        # Additional interactive features
+        features = additional_interactive_features(data.copy())
+        st.subheader("Recent Prices (Last 30 Days)")
+        st.dataframe(features['recent_table'])
+        if show_volume:
+            st.subheader("Volume Chart")
+            st.altair_chart(features['volume_chart'], use_container_width=True)
+        if show_ma:
+            st.subheader("20-Day Moving Average")
+            st.altair_chart(features['ma_chart'], use_container_width=True)
+        if show_volatility:
+            st.subheader("20-Day Volatility")
+            st.altair_chart(features['vol_chart'], use_container_width=True)
+    
+    # ---------------------------
+    # Forecast Tab: Price Forecasting Using Multiple Models
+    # ---------------------------
+    with tabs[2]:
+        st.header("Stock Price Forecast")
+        st.write("Forecasting using Prophet, ARIMA, and LSTM models.")
+        try:
+            prophet_pred = forecast_prophet(data, forecast_days)
+        except Exception as e:
+            st.error(f"Prophet forecasting failed: {e}")
+            prophet_pred = np.zeros(forecast_days)
+        try:
+            arima_pred = forecast_arima(data['Close'], forecast_days)
+        except Exception as e:
+            st.error(f"ARIMA forecasting failed: {e}")
+            arima_pred = np.zeros(forecast_days)
+        try:
+            lstm_pred = forecast_lstm(data['Close'], forecast_days)
+        except Exception as e:
+            st.error(f"LSTM forecasting failed: {e}")
+            lstm_pred = np.zeros(forecast_days)
+        
+        # Compute model errors using recent actual data (if available)
+        if len(data['Close']) >= forecast_days:
+            actual_recent = data['Close'][-forecast_days:].values
+        else:
+            actual_recent = prophet_pred  # fallback if not enough data
+        
+        errors = {
+            "Prophet": mean_absolute_error(actual_recent, prophet_pred),
+            "ARIMA": mean_absolute_error(actual_recent, arima_pred),
+            "LSTM": mean_absolute_error(actual_recent, lstm_pred)
+        }
+        best_model = min(errors, key=errors.get)
+        best_forecast = {"Prophet": prophet_pred, "ARIMA": arima_pred, "LSTM": lstm_pred}[best_model]
+        
+        # Adjust forecast based on news sentiment
+        adjusted_forecast = best_forecast * sentiment_factor
+        
+        forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
+        forecast_df = pd.DataFrame({
+            "Date": forecast_dates,
+            "Forecasted Price": best_forecast.round(2),
+            "Adjusted Forecast Price": adjusted_forecast.round(2)
+        })
+        
+        st.success(f"Best Forecast Model: **{best_model}** with MAE: {errors[best_model]:.2f}")
+        st.dataframe(forecast_df.style.format({
+            "Forecasted Price": "${:,.2f}", 
+            "Adjusted Forecast Price": "${:,.2f}"
+        }))
+        
+        # Interactive forecast comparison chart
+        forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"], var_name="Type", value_name="Price")
+        forecast_chart = alt.Chart(forecast_chart_data).mark_line().encode(
+            x='Date:T', y='Price:Q', color='Type:N', tooltip=['Date:T', 'Price', 'Type']
+        ).properties(width=700, height=400)
+        st.altair_chart(forecast_chart, use_container_width=True)
+    
+    # ---------------------------
+    # News Impact Tab: Summaries of Relevant News
+    # ---------------------------
+    with tabs[3]:
+        st.header("News Summaries Impacting the Stock")
+        news_df = get_news_summaries(news_items)
+        if not news_df.empty:
+            for idx, row in news_df.iterrows():
+                st.subheader(row['Title'])
+                st.write(row['Summary'])
+                st.markdown("---")
+        else:
+            st.write("No news items available.")
+    
+    # ---------------------------
+    # Insights Tab: Analysis, Recommendations & Interactive Q&A
+    # ---------------------------
+    with tabs[4]:
+        st.header("Insights & Recommendations")
+        st.markdown("""
+        **Market Analysis:**
+        - Positive sentiment usually indicates potential upward momentum.
+        - Negative sentiment can be a warning sign of downturns.
+        - Always consider multiple market indicators before making investment decisions.
+        
+        **Recommendations:**
+        - If sentiment is positive: Consider buying and holding.
+        - If sentiment is negative: Exercise caution; consider selling or holding.
+        """)
+        st.markdown("### Ask a Question")
+        question = st.text_input("Enter your question about market trends or stock performance:")
+        if st.button("Get Answer"):
+            if "increase" in question.lower():
+                st.write("Stocks may increase if there is sustained positive sentiment and strong earnings reports.")
+            elif "decrease" in question.lower():
+                st.write("Stocks might decrease if negative news continues and market conditions worsen.")
+            else:
+                st.write("Please provide more details or ask another question.")
+    
+    # ---------------------------
+    # Detailed Analysis Tab: In-Depth Data Exploration
+    # ---------------------------
+    with tabs[5]:
+        st.header("Detailed Data Analysis")
+        st.markdown("Explore various aspects of the stock data.")
+        analysis_start = st.date_input("Analysis Start Date", start_date)
+        analysis_end = st.date_input("Analysis End Date", end_date)
+        if analysis_start > analysis_end:
+            st.error("Start date must be before end date.")
+        else:
+            detailed_data = data.loc[analysis_start:analysis_end]
+            st.write("Detailed Data", detailed_data)
+            st.subheader("Correlation Matrix")
+            corr = detailed_data.corr()
+            st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
+            st.subheader("Distribution of Closing Prices")
+            hist = alt.Chart(detailed_data.reset_index()).mark_bar().encode(
+                alt.X("Close:Q", bin=alt.Bin(maxbins=30)),
+                y='count()',
+                tooltip=['count()']
+            ).properties(width=700, height=400)
+            st.altair_chart(hist, use_container_width=True)
+    
+    # ---------------------------
+    # Settings Tab: Application Options
+    # ---------------------------
+    with tabs[6]:
+        st.header("Application Settings")
+        st.markdown("Adjust application parameters and view raw data.")
+        if st.checkbox("Show raw data"):
+            st.subheader("Raw Data")
+            st.dataframe(data)
+        st.markdown("### Model Settings")
+        st.markdown("Forecasting model parameters can be adjusted here in future versions.")
+    
+    # ---------------------------
+    # Footer and Additional Sections
+    # ---------------------------
+    st.markdown("---")
+    st.write("© 2025 Advanced StockGPT - All rights reserved.")
+    st.markdown("### Future Enhancements")
+    st.write("More features and interactive elements will be added in future updates.")
+    st.markdown("### End of Dashboard")
 
-with tabs[3]:
-    st.header("📰 Top News Summaries")
-    news_df = get_news_summaries(news_items)
-    for idx, row in news_df.iterrows():
-        st.subheader(f"{idx+1}. {row['Title']}")
-        st.write(row['Summary'])
+# =============================================================================
+# Run the Application
+# =============================================================================
+if __name__ == "__main__":
+    main()
+    logging.info("Application started.")
+
+# =============================================================================
+# EXTRA CODE LINES (Optional placeholders or future enhancements)
+# =============================================================================
+# You can add more modules, comments, or functionality here as you continue to expand the project.
