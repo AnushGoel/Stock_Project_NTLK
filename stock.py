@@ -255,11 +255,11 @@ def main():
         st.header(f"{ticker} Overview")
         try:
             closing_price = data['Close'].iloc[-1]
-            # Check if closing_price is a number and not NaN
+            # Check if closing_price is numeric and not NaN
             if pd.isna(closing_price):
                 closing_display = "N/A"
             else:
-                closing_display = f"${closing_price:.2f}"
+                closing_display = f"${float(closing_price):.2f}"
         except Exception as e:
             closing_display = "N/A"
             st.error("Error retrieving closing price.")
@@ -457,4 +457,4 @@ if __name__ == "__main__":
 # =============================================================================
 # EXTRA CODE LINES (Optional placeholders or future enhancements)
 # =============================================================================
-# Additional code or placeholder comments can be added below. 
+# Additional code or placeholder comments can be added below.
