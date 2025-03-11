@@ -3,7 +3,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import altair as alt
 import datetime
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -17,10 +16,12 @@ from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+import plotly.express as px
+import plotly.graph_objects as go
 import logging
 import warnings
 
-# Suppress warnings and set logging configuration
+# Suppress warnings and configure logging
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -34,7 +35,7 @@ nltk.download('vader_lexicon', quiet=True)
 def fetch_news(ticker):
     """
     Fetch news articles for the given ticker.
-    For this demo, we return dummy news data relevant to US markets.
+    For demonstration, return dummy news data.
     In production, integrate with a real news API.
     """
     dummy_news = [
@@ -151,32 +152,30 @@ def forecast_lstm(series, forecast_days):
 def additional_interactive_features(data):
     """
     Create extra interactive elements for deeper data exploration.
-    Returns a dictionary of charts and data tables.
+    Returns a dictionary of data tables and Plotly figures.
     """
     features = {}
     # Recent 30-day prices
     recent_data = data.tail(30)
     features['recent_table'] = recent_data
 
-    # Volume Chart
-    chart_volume = alt.Chart(data.reset_index()).mark_bar().encode(
-        x='Date:T', y='Volume:Q', tooltip=['Date:T', 'Volume']
-    ).properties(width=700, height=300)
-    features['volume_chart'] = chart_volume
+    # Volume Chart using Plotly
+    fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
+    features['volume_chart'] = fig_volume
 
-    # 20-Day Moving Average
+    # 20-Day Moving Average Chart
     data['MA20'] = data['Close'].rolling(window=20).mean()
-    chart_ma = alt.Chart(data.reset_index()).mark_line(color='red').encode(
-        x='Date:T', y='MA20:Q', tooltip=['Date:T', 'MA20']
-    ).properties(width=700, height=300)
-    features['ma_chart'] = chart_ma
+    fig_ma = go.Figure()
+    fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
+    fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
+    features['ma_chart'] = fig_ma
 
-    # 20-Day Volatility (rolling standard deviation)
+    # 20-Day Volatility Chart (rolling standard deviation)
     data['Volatility'] = data['Close'].rolling(window=20).std()
-    chart_vol = alt.Chart(data.reset_index()).mark_line(color='orange').encode(
-        x='Date:T', y='Volatility:Q', tooltip=['Date:T', 'Volatility']
-    ).properties(width=700, height=300)
-    features['vol_chart'] = chart_vol
+    fig_vol = go.Figure()
+    fig_vol.add_trace(go.Scatter(x=data.index, y=data['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
+    fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
+    features['vol_chart'] = fig_vol
 
     return features
 
@@ -199,7 +198,7 @@ def display_feedback():
     feedback = st.sidebar.text_area("Your Feedback:")
     if st.sidebar.button("Submit Feedback"):
         st.sidebar.success("Thank you for your feedback!")
-        # Here you could log or store the feedback
+        # Optionally, log or store the feedback
 
 # =============================================================================
 # Main Application
@@ -239,6 +238,7 @@ def main():
         st.error(f"Error fetching data: {e}")
         return
     data_load_state.success("Data fetched successfully!")
+    data.index.name = "Date"  # Ensure the index is named for Plotly charts
     
     # ---------------------------
     # News and Sentiment Analysis
@@ -269,10 +269,11 @@ def main():
     with tabs[1]:
         st.header("Historical Stock Performance")
         chart_data = data.reset_index()[['Date', 'Close']].dropna()
-        chart = alt.Chart(chart_data).mark_line().encode(
-            x='Date:T', y='Close:Q', tooltip=['Date:T', 'Close']
-        ).properties(width=700, height=400)
-        st.altair_chart(chart, use_container_width=True)
+        if chart_data.empty:
+            st.error("No chart data available.")
+        else:
+            fig_line = px.line(chart_data, x="Date", y="Close", title="Closing Prices Over Time", labels={"Close": "Closing Price"})
+            st.plotly_chart(fig_line, use_container_width=True)
         
         # Additional interactive features
         features = additional_interactive_features(data.copy())
@@ -280,13 +281,13 @@ def main():
         st.dataframe(features['recent_table'])
         if show_volume:
             st.subheader("Volume Chart")
-            st.altair_chart(features['volume_chart'], use_container_width=True)
+            st.plotly_chart(features['volume_chart'], use_container_width=True)
         if show_ma:
             st.subheader("20-Day Moving Average")
-            st.altair_chart(features['ma_chart'], use_container_width=True)
+            st.plotly_chart(features['ma_chart'], use_container_width=True)
         if show_volatility:
             st.subheader("20-Day Volatility")
-            st.altair_chart(features['vol_chart'], use_container_width=True)
+            st.plotly_chart(features['vol_chart'], use_container_width=True)
     
     # ---------------------------
     # Forecast Tab: Price Forecasting Using Multiple Models
@@ -310,7 +311,7 @@ def main():
             st.error(f"LSTM forecasting failed: {e}")
             lstm_pred = np.zeros(forecast_days)
         
-        # Compute model errors using recent actual data (if available)
+        # Use recent actual data (if available) to compute model errors
         if len(data['Close']) >= forecast_days:
             actual_recent = data['Close'][-forecast_days:].values
         else:
@@ -340,12 +341,10 @@ def main():
             "Adjusted Forecast Price": "${:,.2f}"
         }))
         
-        # Interactive forecast comparison chart
+        # Interactive forecast comparison chart using Plotly
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"], var_name="Type", value_name="Price")
-        forecast_chart = alt.Chart(forecast_chart_data).mark_line().encode(
-            x='Date:T', y='Price:Q', color='Type:N', tooltip=['Date:T', 'Price', 'Type']
-        ).properties(width=700, height=400)
-        st.altair_chart(forecast_chart, use_container_width=True)
+        fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison")
+        st.plotly_chart(fig_forecast, use_container_width=True)
     
     # ---------------------------
     # News Impact Tab: Summaries of Relevant News
@@ -403,12 +402,8 @@ def main():
             corr = detailed_data.corr()
             st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
             st.subheader("Distribution of Closing Prices")
-            hist = alt.Chart(detailed_data.reset_index()).mark_bar().encode(
-                alt.X("Close:Q", bin=alt.Bin(maxbins=30)),
-                y='count()',
-                tooltip=['count()']
-            ).properties(width=700, height=400)
-            st.altair_chart(hist, use_container_width=True)
+            fig_hist = px.histogram(detailed_data.reset_index(), x="Close", nbins=30, title="Distribution of Closing Prices")
+            st.plotly_chart(fig_hist, use_container_width=True)
     
     # ---------------------------
     # Settings Tab: Application Options
@@ -441,4 +436,4 @@ if __name__ == "__main__":
 # =============================================================================
 # EXTRA CODE LINES (Optional placeholders or future enhancements)
 # =============================================================================
-# You can add more modules, comments, or functionality here as you continue to expand the project.
+# Additional code or placeholder comments can be added below.
