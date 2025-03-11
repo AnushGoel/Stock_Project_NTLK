@@ -154,13 +154,14 @@ def additional_interactive_features(data):
     # Recent 30-day prices
     features['recent_table'] = data.tail(30)
     
-    # Ensure the 'Volume' column is a 1D Series
-    if isinstance(data['Volume'], pd.DataFrame):
-        volume_series = data['Volume'].squeeze()
-    else:
-        volume_series = data['Volume']
+    # Ensure the 'Volume' column is a one-dimensional Series:
+    vol = data['Volume']
+    if isinstance(vol, pd.DataFrame):
+        vol = vol.squeeze(axis=1)
     # Convert to numeric and fill missing values
-    data['Volume'] = pd.to_numeric(volume_series, errors='coerce').fillna(0)
+    vol_numeric = pd.to_numeric(vol, errors='coerce').fillna(0)
+    data = data.copy()  # work on a copy
+    data['Volume'] = vol_numeric
     
     # Volume Chart using Plotly
     fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
@@ -256,7 +257,7 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            # Retrieve a scalar closing price using .values[-1]
+            # Retrieve a scalar closing price using .values
             closing_price = data['Close'].values[-1]
             if pd.isna(closing_price):
                 closing_display = "N/A"
