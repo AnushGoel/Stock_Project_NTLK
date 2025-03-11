@@ -33,11 +33,7 @@ nltk.download('vader_lexicon', quiet=True)
 # =============================================================================
 
 def fetch_news(ticker):
-    """
-    Fetch news articles for the given ticker.
-    For demonstration, return dummy news data.
-    In production, integrate with a real news API.
-    """
+    """Fetch dummy news articles for the given ticker."""
     dummy_news = [
         {"title": f"{ticker} hits record high in US markets", 
          "content": f"The stock {ticker} has reached a record high in the US market due to strong earnings and positive investor sentiment. Analysts are optimistic about the growth prospects."},
@@ -50,10 +46,7 @@ def fetch_news(ticker):
     return dummy_news
 
 def sentiment_analysis(news_items):
-    """
-    Compute the average sentiment score of provided news items using VADER.
-    Returns a compound sentiment score.
-    """
+    """Compute average sentiment score using VADER."""
     analyzer = SentimentIntensityAnalyzer()
     scores = []
     for article in news_items:
@@ -65,9 +58,7 @@ def sentiment_analysis(news_items):
     return avg_score
 
 def summarize_text(text, sentences_count=2):
-    """
-    Summarize text using TextRank algorithm from sumy.
-    """
+    """Summarize text using TextRank from sumy."""
     parser = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = TextRankSummarizer()
     summary = summarizer(parser.document, sentences_count)
@@ -76,9 +67,7 @@ def summarize_text(text, sentences_count=2):
     return summary_text
 
 def get_news_summaries(news_items):
-    """
-    Create a DataFrame containing news titles and summaries.
-    """
+    """Generate a DataFrame with news titles and summaries."""
     summaries = []
     for article in news_items:
         title = article.get("title", "No Title")
@@ -90,9 +79,7 @@ def get_news_summaries(news_items):
     return df
 
 def forecast_prophet(data, forecast_days):
-    """
-    Forecast future stock prices using the Prophet model.
-    """
+    """Forecast using Prophet."""
     df = data.reset_index()[['Date', 'Close']].rename(columns={"Date": "ds", "Close": "y"})
     model = Prophet(daily_seasonality=True)
     model.fit(df)
@@ -103,9 +90,7 @@ def forecast_prophet(data, forecast_days):
     return forecast_values
 
 def forecast_arima(series, forecast_days):
-    """
-    Forecast future stock prices using an ARIMA model.
-    """
+    """Forecast using ARIMA."""
     model = ARIMA(series, order=(5,1,0))
     model_fit = model.fit()
     forecast = model_fit.forecast(steps=forecast_days)
@@ -113,14 +98,10 @@ def forecast_arima(series, forecast_days):
     return forecast.values
 
 def forecast_lstm(series, forecast_days):
-    """
-    Forecast future stock prices using an LSTM model.
-    Uses the last 60 days as input to predict future prices.
-    """
+    """Forecast using LSTM."""
     data_vals = series.values.reshape(-1, 1)
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaled_data = scaler.fit_transform(data_vals)
-    
     time_step = 60
     X, y = [], []
     for i in range(time_step, len(scaled_data)):
@@ -128,7 +109,6 @@ def forecast_lstm(series, forecast_days):
         y.append(scaled_data[i, 0])
     X, y = np.array(X), np.array(y)
     X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-    
     model = Sequential()
     model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1], 1)))
     model.add(LSTM(50))
@@ -136,7 +116,6 @@ def forecast_lstm(series, forecast_days):
     model.compile(loss='mean_squared_error', optimizer='adam')
     model.fit(X, y, epochs=10, batch_size=32, verbose=0)
     logging.info("LSTM model training complete")
-    
     temp_input = scaled_data[-time_step:].tolist()
     lst_output = []
     for i in range(forecast_days):
@@ -150,39 +129,29 @@ def forecast_lstm(series, forecast_days):
     return forecast_values
 
 def additional_interactive_features(data):
-    """
-    Create extra interactive elements for deeper data exploration.
-    Returns a dictionary of data tables and Plotly figures.
-    """
+    """Create extra interactive features and charts."""
     features = {}
     # Recent 30-day prices
-    recent_data = data.tail(30)
-    features['recent_table'] = recent_data
-
-    # Volume Chart using Plotly
+    features['recent_table'] = data.tail(30)
+    # Volume Chart
     fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
     features['volume_chart'] = fig_volume
-
-    # 20-Day Moving Average Chart
+    # 20-Day Moving Average
     data['MA20'] = data['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
     fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
-
-    # 20-Day Volatility Chart (rolling standard deviation)
+    # 20-Day Volatility
     data['Volatility'] = data['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
     fig_vol.add_trace(go.Scatter(x=data.index, y=data['Volatility'], mode='lines', name='Volatility', line=dict(color='orange')))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
-
     return features
 
 def display_about():
-    """
-    Display about information in the sidebar.
-    """
+    """Display information in the sidebar."""
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info("""
     StockGPT is an advanced tool for analyzing and forecasting stock prices.
@@ -191,38 +160,33 @@ def display_about():
     """)
 
 def display_feedback():
-    """
-    Display a feedback form in the sidebar.
-    """
+    """Display a feedback form in the sidebar."""
     st.sidebar.markdown("## Feedback")
     feedback = st.sidebar.text_area("Your Feedback:")
     if st.sidebar.button("Submit Feedback"):
         st.sidebar.success("Thank you for your feedback!")
-        # Optionally log or store the feedback
 
 # =============================================================================
 # Main Application
 # =============================================================================
 
 def main():
-    # Configure Streamlit page
     st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
     display_about()
     display_feedback()
     
-    # Sidebar input widgets
+    # Sidebar Inputs
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 14)
-    
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Advanced Options")
     show_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
     show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
-    # Create multiple tabs for different sections
+    # Tabs for Sections
     tabs = st.tabs([
         "📊 Dashboard", 
         "📈 Charts", 
@@ -234,9 +198,7 @@ def main():
         "⚙️ Settings"
     ])
     
-    # ---------------------------
     # Data Acquisition
-    # ---------------------------
     data_load_state = st.info("Fetching stock data...")
     try:
         data = yf.download(ticker, start=start_date, end=end_date)
@@ -247,21 +209,16 @@ def main():
         st.error(f"Error fetching data: {e}")
         return
     data_load_state.success("Data fetched successfully!")
-    data.index.name = "Date"  # Ensure the index is named for Plotly charts
+    data.index.name = "Date"
     
-    # ---------------------------
-    # News and Sentiment Analysis
-    # ---------------------------
+    # News & Sentiment
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
-    # ---------------------------
     # Dashboard Tab: Overview
-    # ---------------------------
     with tabs[0]:
         st.header(f"{ticker} Overview")
-        # Retrieve and process closing price without inline formatting to avoid TypeError.
         try:
             closing_price = data['Close'].iloc[-1]
             if pd.isna(closing_price):
@@ -269,30 +226,26 @@ def main():
             else:
                 try:
                     price_value = float(closing_price)
+                    # Use str.format to format the value to two decimals.
                     closing_display = "${:.2f}".format(price_value)
                 except Exception:
                     closing_display = "N/A"
         except Exception as e:
             closing_display = "N/A"
             st.error(f"Error retrieving closing price: {e}")
-        
         st.metric("Today's Closing Price", closing_display)
         st.metric("News Sentiment", "{:.2f}".format(sentiment_score))
         recommendation = "🟢 Buy" if sentiment_score > 0 else ("🔴 Hold/Sell" if sentiment_score < 0 else "⚪ Neutral")
         st.write("Investment Recommendation:", recommendation)
     
-    # ---------------------------
-    # Charts Tab: Historical Performance (Line Chart & Price Range Filter)
-    # ---------------------------
+    # Charts Tab: Historical Performance
     with tabs[1]:
         st.header("Historical Stock Performance")
         price_min = float(data['Close'].min())
         price_max = float(data['Close'].max())
         selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
-        
         filtered_data = data[(data['Close'] >= selected_range[0]) & (data['Close'] <= selected_range[1])]
         chart_data = filtered_data.reset_index()[['Date', 'Close']].dropna()
-        
         if chart_data.empty:
             st.error("No chart data available for the selected price range.")
         else:
@@ -301,8 +254,6 @@ def main():
                 st.plotly_chart(fig_line, use_container_width=True)
             except Exception as e:
                 st.error(f"Error rendering chart: {e}")
-        
-        # Additional interactive features
         features = additional_interactive_features(data.copy())
         st.subheader("Recent Prices (Last 30 Days)")
         st.dataframe(features['recent_table'])
@@ -316,9 +267,7 @@ def main():
             st.subheader("20-Day Volatility")
             st.plotly_chart(features['vol_chart'], use_container_width=True)
     
-    # ---------------------------
-    # Candlestick Tab: Display Candlestick Chart
-    # ---------------------------
+    # Candlestick Tab
     with tabs[2]:
         st.header("Candlestick Chart")
         try:
@@ -335,9 +284,7 @@ def main():
         except Exception as e:
             st.error(f"Error rendering candlestick chart: {e}")
     
-    # ---------------------------
-    # Forecast Tab: Price Forecasting Using Multiple Models
-    # ---------------------------
+    # Forecast Tab
     with tabs[3]:
         st.header("Stock Price Forecast")
         st.write("Forecasting using Prophet, ARIMA, and LSTM models.")
@@ -356,12 +303,10 @@ def main():
         except Exception as e:
             st.error(f"LSTM forecasting failed: {e}")
             lstm_pred = np.zeros(forecast_days)
-        
         if len(data['Close']) >= forecast_days:
             actual_recent = data['Close'][-forecast_days:].values
         else:
             actual_recent = prophet_pred
-        
         errors = {
             "Prophet": mean_absolute_error(actual_recent, prophet_pred),
             "ARIMA": mean_absolute_error(actual_recent, arima_pred),
@@ -369,32 +314,27 @@ def main():
         }
         best_model = min(errors, key=errors.get)
         best_forecast = {"Prophet": prophet_pred, "ARIMA": arima_pred, "LSTM": lstm_pred}[best_model]
-        
         adjusted_forecast = best_forecast * sentiment_factor
-        
         forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
         forecast_df = pd.DataFrame({
             "Date": forecast_dates,
             "Forecasted Price": best_forecast.round(2),
             "Adjusted Forecast Price": adjusted_forecast.round(2)
         })
-        
         st.success(f"Best Forecast Model: **{best_model}** with MAE: {errors[best_model]:.2f}")
         st.dataframe(forecast_df.style.format({
-            "Forecasted Price": "${:,.2f}", 
+            "Forecasted Price": "${:,.2f}",
             "Adjusted Forecast Price": "${:,.2f}"
         }))
-        
-        forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"], var_name="Type", value_name="Price")
+        forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["Forecasted Price", "Adjusted Forecast Price"],
+                                               var_name="Type", value_name="Price")
         try:
             fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison")
             st.plotly_chart(fig_forecast, use_container_width=True)
         except Exception as e:
             st.error(f"Error rendering forecast chart: {e}")
     
-    # ---------------------------
-    # News Impact Tab: Summaries of Relevant News
-    # ---------------------------
+    # News Impact Tab
     with tabs[4]:
         st.header("News Summaries Impacting the Stock")
         news_df = get_news_summaries(news_items)
@@ -406,9 +346,7 @@ def main():
         else:
             st.write("No news items available.")
     
-    # ---------------------------
-    # Insights Tab: Analysis, Recommendations & Interactive Q&A
-    # ---------------------------
+    # Insights Tab
     with tabs[5]:
         st.header("Insights & Recommendations")
         st.markdown("""
@@ -431,9 +369,7 @@ def main():
             else:
                 st.write("Please provide more details or ask another question.")
     
-    # ---------------------------
-    # Detailed Analysis Tab: In-Depth Data Exploration
-    # ---------------------------
+    # Detailed Analysis Tab
     with tabs[6]:
         st.header("Detailed Data Analysis")
         st.markdown("Explore various aspects of the stock data.")
@@ -454,9 +390,7 @@ def main():
             except Exception as e:
                 st.error(f"Error rendering histogram: {e}")
     
-    # ---------------------------
-    # Settings Tab: Application Options
-    # ---------------------------
+    # Settings Tab
     with tabs[7]:
         st.header("Application Settings")
         st.markdown("Adjust application parameters and view raw data.")
@@ -466,9 +400,7 @@ def main():
         st.markdown("### Model Settings")
         st.markdown("Forecasting model parameters can be adjusted here in future versions.")
     
-    # ---------------------------
-    # Footer and Additional Sections
-    # ---------------------------
+    # Footer
     st.markdown("---")
     st.write("© 2025 Advanced StockGPT - All rights reserved.")
     st.markdown("### Future Enhancements")
@@ -478,6 +410,7 @@ def main():
 # =============================================================================
 # Run the Application
 # =============================================================================
+
 if __name__ == "__main__":
     main()
     logging.info("Application started.")
