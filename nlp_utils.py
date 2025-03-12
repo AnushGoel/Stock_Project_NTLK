@@ -1,4 +1,5 @@
 import requests
+import random
 import nltk
 import logging
 import pandas as pd
@@ -17,38 +18,56 @@ try:
 except LookupError:
     nltk.download('vader_lexicon', quiet=True)
 
-# Your NewsAPI key (store securely in production)
+# Your NewsAPI key
 API_KEY = "a9d34b39961346bca7b51ea428732d84"
 
 def fetch_news(ticker):
     """
-    Fetch news articles from NewsAPI for the given ticker.
-    Returns a list of dictionaries with keys 'title' and 'content'.
+    Fetch news articles from NewsAPI using two queries:
+    - One for ticker-specific news.
+    - One for broader economic, political, geopolitical, market, employment, technology, and AI news.
+    Returns up to 150 unique articles.
     """
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        "q": ticker,
-        "language": "en",
-        "sortBy": "publishedAt",
-        "pageSize": 50,
-        "apiKey": API_KEY
-    }
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        articles = data.get("articles", [])
-        result = []
-        for article in articles:
-            result.append({
-                "title": article.get("title", "No Title"),
-                "content": article.get("description", "") or article.get("content", "")
-            })
-        logging.info("Fetched %d news articles for ticker: %s", len(result), ticker)
-        return result
-    except Exception as e:
-        logging.error(f"Error fetching news from NewsAPI: {e}")
-        return []
+    base_url = "https://newsapi.org/v2/everything"
+    queries = [
+        f'"{ticker}"',  # Exact ticker (in quotes for exact match)
+        "economy OR political OR geopolitical OR market OR employment OR technology OR AI OR innovation"
+    ]
+    
+    all_articles = []
+    
+    for q in queries:
+        params = {
+            "q": q,
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 100,  # Maximum page size
+            "apiKey": API_KEY
+        }
+        try:
+            response = requests.get(base_url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            articles = data.get("articles", [])
+            all_articles.extend(articles)
+        except Exception as e:
+            logging.error(f"Error fetching news for query '{q}': {e}")
+    
+    # Remove duplicates based on title
+    seen_titles = set()
+    unique_articles = []
+    for article in all_articles:
+        title = article.get("title", "").strip()
+        if title and title not in seen_titles:
+            seen_titles.add(title)
+            unique_articles.append(article)
+    
+    # If more than 150 unique articles, randomly sample 150.
+    if len(unique_articles) > 150:
+        unique_articles = random.sample(unique_articles, 150)
+    
+    logging.info("Fetched %d unique news articles for ticker: %s", len(unique_articles), ticker)
+    return unique_articles
 
 def summarize_text(text, sentences_count=2):
     """
@@ -91,7 +110,7 @@ def summarize_text(text, sentences_count=2):
 def get_news_summaries(news_items):
     """
     Create a DataFrame containing news titles and summaries.
-    Ensures that each news article is a dictionary.
+    Ensures each news article is a dictionary.
     """
     summaries = []
     for article in news_items:
