@@ -148,30 +148,9 @@ def additional_interactive_features(data):
     """
     Create extra interactive elements for deeper data exploration.
     Returns a dictionary of data tables and Plotly figures.
+    NOTE: The volume chart has been removed.
     """
     features = {}
-    
-    # Prepare a copy of data with reset index for charts
-    df_data = data.copy().reset_index()
-    
-    # Ensure that the date column is named "Date"
-    if "Date" not in df_data.columns:
-        df_data.rename(columns={'index': 'Date'}, inplace=True)
-    
-    # Ensure that the "Volume" column exists and is numeric.
-    if 'Volume' not in df_data.columns:
-        df_data['Volume'] = 0
-    else:
-        volume_data = df_data['Volume']
-        # If the volume data is a DataFrame (not a Series), take its first column.
-        if isinstance(volume_data, pd.DataFrame):
-            volume_data = volume_data.iloc[:, 0]
-        # Convert to numeric
-        df_data['Volume'] = pd.to_numeric(volume_data, errors='coerce').fillna(0)
-    
-    # Build Volume Chart using the prepared DataFrame
-    fig_volume = px.bar(df_data, x='Date', y='Volume', title="Volume Chart")
-    features['volume_chart'] = fig_volume
 
     # Recent 30-day prices from the original data
     features['recent_table'] = data.tail(30)
@@ -228,7 +207,7 @@ def main():
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 14)
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Advanced Options")
-    show_volume = st.sidebar.checkbox("Show Volume Chart", value=True)
+    # Removed volume chart checkbox as the feature is now disabled.
     show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
@@ -302,9 +281,6 @@ def main():
         features = additional_interactive_features(data.copy())
         st.subheader("Recent Prices (Last 30 Days)")
         st.dataframe(features['recent_table'])
-        if show_volume:
-            st.subheader("Volume Chart")
-            st.plotly_chart(features['volume_chart'], use_container_width=True)
         if show_ma:
             st.subheader("20-Day Moving Average")
             st.plotly_chart(features['ma_chart'], use_container_width=True)
