@@ -24,9 +24,16 @@ import warnings
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Download NLTK resources needed
-nltk.download('vader_lexicon', quiet=True)
-nltk.download('punkt', quiet=True)
+# Ensure that the necessary NLTK resources are available
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+try:
+    nltk.data.find('sentiment/vader_lexicon.zip')
+except LookupError:
+    nltk.download('vader_lexicon', quiet=True)
 
 # =============================================================================
 # Helper Functions
@@ -62,7 +69,7 @@ def sentiment_analysis(news_items):
 
 def summarize_text(text, sentences_count=2):
     """
-    Summarize text using TextRank algorithm from sumy.
+    Summarize text using the TextRank algorithm from sumy.
     """
     parser = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = TextRankSummarizer()
@@ -152,7 +159,7 @@ def additional_interactive_features(data):
     NOTE: The volume chart has been removed.
     """
     features = {}
-
+    
     # Recent 30-day prices from the original data
     features['recent_table'] = data.tail(30)
     
