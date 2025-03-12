@@ -4,8 +4,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import datetime
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 import logging
 import warnings
 
@@ -17,13 +17,11 @@ from model_tuning import tune_prophet, tune_arima, tune_lstm
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-
 def flatten_data_columns(data: pd.DataFrame) -> pd.DataFrame:
     """Flatten multi-index columns from yfinance data if present."""
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     return data
-
 
 def get_company_info(ticker: str) -> dict:
     """Fetch company information from yfinance."""
@@ -49,9 +47,8 @@ def get_company_info(ticker: str) -> dict:
             "fullTimeEmployees": "N/A"
         }
 
-
 def additional_interactive_features(data: pd.DataFrame) -> dict:
-    """Generate interactive charts (MA, Volatility, RSI, MACD) and recent data table."""
+    """Generate charts (MA, Volatility, RSI, MACD, etc.) and a recent data table."""
     features = {}
     data_calc = data.copy()
     features['recent_table'] = data_calc.tail(30).round(2)
@@ -82,7 +79,7 @@ def additional_interactive_features(data: pd.DataFrame) -> dict:
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
     
-    # RSI Chart (if available)
+    # RSI (if available)
     if 'RSI' in data_calc.columns:
         fig_rsi = px.line(data_calc.reset_index(), x="Date", y="RSI", title="RSI Over Time")
         features['rsi_chart'] = fig_rsi
@@ -112,11 +109,11 @@ def additional_interactive_features(data: pd.DataFrame) -> dict:
 
     return features
 
-
 def combine_historical_and_forecast(data: pd.DataFrame, forecast_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Merge historical closing price data with forecast data into a single DataFrame.
-    The historical data is labeled 'Historical' and forecast as 'Forecast'.
+    Merge historical data with forecast data into a single DataFrame 
+    for plotting. The historical portion is labeled 'Historical' 
+    and the forecast portion is labeled 'Forecast'.
     """
     hist_data = data.reset_index()[["Date", "Close"]].copy()
     hist_data["Price"] = hist_data["Close"].round(2)
@@ -131,25 +128,24 @@ def combine_historical_and_forecast(data: pd.DataFrame, forecast_df: pd.DataFram
     combined = pd.concat([hist_data, fc_data], ignore_index=True)
     return combined
 
-
 def display_about():
+    """Sidebar About section."""
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
-        "StockGPT is a comprehensive stock analysis and forecasting tool that leverages historical data, news sentiment, "
-        "technical indicators, and advanced forecasting models to provide actionable insights."
+        "StockGPT is a comprehensive stock analysis and forecasting tool that integrates historical data, news sentiment, "
+        "technical indicators, and advanced forecasting models to deliver actionable insights."
     )
-
 
 def main():
     st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
     
-    # Sidebar: Only Ticker, Date Range, and Forecast Days
+    # Sidebar inputs (only essential ones)
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs – add a separate "Company Overview" tab.
+    # Define tabs (including a separate Company Overview tab)
     tabs = st.tabs([
         "📊 Dashboard", 
         "📈 Charts", 
@@ -161,12 +157,12 @@ def main():
         "🏢 Company Overview"
     ])
     
-    # Fetch Data
+    # Fetch stock data
     data_load_state = st.info("Fetching stock data...")
     try:
         data = yf.download(ticker, start=start_date, end=end_date)
         if data.empty:
-            st.error("No data found for ticker. Please check the symbol and try again.")
+            st.error("No data found for this ticker. Please check the symbol and try again.")
             return
         data = flatten_data_columns(data)
     except Exception as e:
@@ -178,28 +174,29 @@ def main():
     # Compute technical indicators
     data = calculate_technical_indicators(data)
     
-    # Fetch company info and news
-    comp_info = get_company_info(ticker)
+    # Fetch news and compute sentiment
     news_items = fetch_news(ticker)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
-    # =================
+    # ===========================
     # TAB: Dashboard
-    # =================
+    # ===========================
     with tabs[0]:
         st.markdown("<style> .header {font-size: 2.5rem; font-weight: bold; color: #333;} </style>", unsafe_allow_html=True)
         st.markdown(f"<div class='header'>{ticker} Dashboard</div>", unsafe_allow_html=True)
         
         col1, col2 = st.columns([1, 3])
         with col1:
-            st.image(comp_info["logo_url"], width=120)
+            st.image(get_company_info(ticker)["logo_url"], width=120)
         with col2:
-            st.markdown(f"**Website:** [Visit]({comp_info['website']})" if comp_info["website"] != "N/A" else "Website: N/A")
+            comp_info = get_company_info(ticker)
+            if comp_info["website"] != "N/A":
+                st.markdown(f"**Website:** [Visit]({comp_info['website']})")
             st.markdown(comp_info["longBusinessSummary"])
         
         st.markdown("---")
-        # Interactive Candlestick Chart
+        # Interactive Candlestick Chart (with valid hovertext)
         st.markdown("### Interactive Candlestick Chart")
         try:
             candle_data = data.reset_index()
@@ -229,14 +226,14 @@ def main():
         fig_hist = px.line(hist_data, x="Date", y="Close", title=f"{ticker} Historical Prices", labels={"Close": "Price ($)"})
         st.plotly_chart(fig_hist, use_container_width=True)
     
-    # =================
+    # ===========================
     # TAB: Charts (Indicators)
-    # =================
+    # ===========================
     with tabs[1]:
         st.header("Historical Performance & Technical Indicators")
         price_min = float(data["Close"].min())
         price_max = float(data["Close"].max())
-        selected_range = st.slider("Select Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
+        selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
         filtered_data = data[(data["Close"] >= selected_range[0]) & (data["Close"] <= selected_range[1])]
         chart_data = filtered_data.reset_index()[["Date", "Close"]].dropna()
         if chart_data.empty:
@@ -266,9 +263,9 @@ def main():
             st.subheader("MACD Histogram")
             st.plotly_chart(features["macd_hist_chart"], use_container_width=True)
     
-    # =================
+    # ===========================
     # TAB: Forecast
-    # =================
+    # ===========================
     with tabs[2]:
         st.header("Forecast Details")
         st.write("Forecasting using Prophet, ARIMA, and LSTM models.")
@@ -321,9 +318,9 @@ def main():
         except Exception as e:
             st.error(f"Error rendering forecast chart: {e}")
     
-    # =================
+    # ===========================
     # TAB: News Impact
-    # =================
+    # ===========================
     with tabs[3]:
         st.header("News Impact")
         news_df = get_news_summaries(news_items)
@@ -335,17 +332,17 @@ def main():
         else:
             st.write("No news items available.")
     
-    # =================
+    # ===========================
     # TAB: Insights
-    # =================
+    # ===========================
     with tabs[4]:
         st.header("Insights & Recommendations")
         st.markdown("""
         **Market Analysis:**
         - Positive sentiment may signal upward momentum.
         - Negative sentiment is a warning indicator.
-        - Technical indicators like RSI and MACD offer additional context.
-        - Broader economic and political events also influence market trends.
+        - Technical indicators (RSI, MACD) offer additional context.
+        - Broader economic and political events also influence markets.
         
         **Recommendations:**
         - Consider buying if sentiment and indicators are favorable.
@@ -355,15 +352,15 @@ def main():
         question = st.text_input("Your question about market trends or stock performance:")
         if st.button("Get Answer"):
             if "increase" in question.lower():
-                st.write("Based on current indicators, stocks may increase if positive sentiment and strong fundamentals persist.")
+                st.write("Stocks may increase if positive sentiment and strong fundamentals persist.")
             elif "decrease" in question.lower():
                 st.write("Stocks might decrease if negative news and bearish signals continue.")
             else:
                 st.write("Please provide more details for a specific analysis.")
     
-    # =================
+    # ===========================
     # TAB: Detailed Analysis
-    # =================
+    # ===========================
     with tabs[5]:
         st.header("Detailed Data Analysis")
         analysis_start = st.date_input("Analysis Start Date", start_date)
@@ -383,18 +380,18 @@ def main():
             except Exception as e:
                 st.error(f"Error rendering histogram: {e}")
     
-    # =================
+    # ===========================
     # TAB: Settings
-    # =================
+    # ===========================
     with tabs[6]:
-        st.header("Settings")
+        st.header("Application Settings")
         st.markdown("View raw data and adjust model parameters (future updates).")
         if st.checkbox("Show raw data"):
             st.dataframe(data.round(2))
     
-    # =================
+    # ===========================
     # TAB: Company Overview
-    # =================
+    # ===========================
     with tabs[7]:
         st.header("Company Overview")
         st.image(comp_info["logo_url"], width=150)
