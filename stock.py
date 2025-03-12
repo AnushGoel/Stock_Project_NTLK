@@ -23,14 +23,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 st.markdown("""
     <style>
     .header {font-size:2.5rem; font-weight:bold; color:#333;}
-    .subheader {font-size:1.8rem; font-weight:bold; color:#444;}
+    .subheader {font-size:1.8rem; font-weight:bold; color:#444; margin-top: 1rem;}
     .price-box {background-color:#f9f9f9; border-radius:8px; padding:1rem; margin-bottom:1rem;}
     .verdict {font-family: Arial, sans-serif; font-size:1.2rem; font-weight:bold; color:#0056b3; margin-top:1rem;}
     </style>
     """, unsafe_allow_html=True)
 
 # ---------- Helper Functions ----------
-
 def flatten_data_columns(data: pd.DataFrame) -> pd.DataFrame:
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
@@ -48,7 +47,9 @@ def get_company_info(ticker: str) -> dict:
             "industry": info.get("industry", "N/A"),
             "fullTimeEmployees": info.get("fullTimeEmployees", "N/A"),
             "trailingPE": info.get("trailingPE", "N/A"),
-            "dividendYield": info.get("dividendYield", "N/A")
+            "dividendYield": info.get("dividendYield", "N/A"),
+            "priceToBook": info.get("priceToBook", "N/A"),
+            "marketCap": info.get("marketCap", "N/A")
         }
     except Exception as e:
         logging.error(f"Error fetching company info for {ticker}: {e}")
@@ -60,7 +61,9 @@ def get_company_info(ticker: str) -> dict:
             "industry": "N/A",
             "fullTimeEmployees": "N/A",
             "trailingPE": "N/A",
-            "dividendYield": "N/A"
+            "dividendYield": "N/A",
+            "priceToBook": "N/A",
+            "marketCap": "N/A"
         }
 
 def additional_interactive_features(data: pd.DataFrame) -> dict:
@@ -70,25 +73,15 @@ def additional_interactive_features(data: pd.DataFrame) -> dict:
     
     data_calc['MA20'] = data_calc['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
-    fig_ma.add_trace(go.Scatter(
-        x=data_calc.index, 
-        y=data_calc['MA20'].round(2), 
-        mode='lines', 
-        name='MA20', 
-        line=dict(color='red')
-    ))
+    fig_ma.add_trace(go.Scatter(x=data_calc.index, y=data_calc['MA20'].round(2),
+                                mode='lines', name='MA20', line=dict(color='red')))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
 
     data_calc['Volatility'] = data_calc['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
-    fig_vol.add_trace(go.Scatter(
-        x=data_calc.index, 
-        y=data_calc['Volatility'].round(2), 
-        mode='lines', 
-        name='Volatility', 
-        line=dict(color='orange')
-    ))
+    fig_vol.add_trace(go.Scatter(x=data_calc.index, y=data_calc['Volatility'].round(2),
+                                 mode='lines', name='Volatility', line=dict(color='orange')))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
 
@@ -98,18 +91,10 @@ def additional_interactive_features(data: pd.DataFrame) -> dict:
 
     if 'MACD' in data_calc.columns and 'MACD_Signal' in data_calc.columns:
         fig_macd = go.Figure()
-        fig_macd.add_trace(go.Scatter(
-            x=data_calc.index, 
-            y=data_calc['MACD'].round(2), 
-            mode='lines', 
-            name='MACD'
-        ))
-        fig_macd.add_trace(go.Scatter(
-            x=data_calc.index, 
-            y=data_calc['MACD_Signal'].round(2), 
-            mode='lines', 
-            name='Signal'
-        ))
+        fig_macd.add_trace(go.Scatter(x=data_calc.index, y=data_calc['MACD'].round(2),
+                                      mode='lines', name='MACD'))
+        fig_macd.add_trace(go.Scatter(x=data_calc.index, y=data_calc['MACD_Signal'].round(2),
+                                      mode='lines', name='Signal'))
         fig_macd.update_layout(title="MACD & Signal", xaxis_title="Date", yaxis_title="MACD")
         features['macd_chart'] = fig_macd
 
@@ -164,19 +149,18 @@ def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, 
         lines.append(f"• **Price Performance:** {ticker2} appears to be outperforming {ticker1}.")
     if vol1 and vol2:
         lines.append(f"• **Average Trading Volume:** {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
+    # You can add further metrics here if available.
     return "<br>".join(lines)
 
 # ---------- Main App ----------
 def main():
-    # st.set_page_config() must be first in the file and is already called at the very top.
-    
     # Sidebar inputs
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs
+    # Define tabs.
     tabs = st.tabs([
         "🏢 Company Overview", 
         "📊 Dashboard", 
@@ -299,11 +283,16 @@ def main():
                 annual_volatility = daily_returns.std() * np.sqrt(252) * 100
                 pe_ratio = comp_info.get("trailingPE", "N/A")
                 dividend_yield = comp_info.get("dividendYield", "N/A")
+                price_to_book = comp_info.get("priceToBook", "N/A")
+                market_cap = comp_info.get("marketCap", "N/A")
                 if dividend_yield != "N/A" and isinstance(dividend_yield, (float, int)):
                     dividend_yield = dividend_yield * 100
+                # Format market cap in billions if possible.
+                if market_cap != "N/A" and isinstance(market_cap, (float, int)):
+                    market_cap = f"${market_cap/1e9:.2f}B"
                 metrics_df = pd.DataFrame({
-                    "Metric": ["Annual Return (%)", "Annual Volatility (%)", "P/E Ratio", "Dividend Yield (%)"],
-                    "Value": [f"{annual_return:.2f}", f"{annual_volatility:.2f}", f"{pe_ratio}", f"{dividend_yield if dividend_yield=='N/A' else f'{dividend_yield:.2f}'}"]
+                    "Metric": ["Annual Return (%)", "Annual Volatility (%)", "P/E Ratio", "Dividend Yield (%)", "Price-to-Book", "Market Cap"],
+                    "Value": [f"{annual_return:.2f}", f"{annual_volatility:.2f}", f"{pe_ratio}", f"{dividend_yield if dividend_yield=='N/A' else f'{dividend_yield:.2f}'}", f"{price_to_book}", f"{market_cap}"]
                 })
                 st.table(metrics_df)
             except Exception as e:
@@ -320,8 +309,10 @@ def main():
         
         st.markdown("---")
         st.subheader("Latest News")
-        if not full_news.empty:
-            for idx, row in full_news.iterrows():
+        # Show only the top 4-5 latest news on the dashboard.
+        top_news = full_news.head(5)
+        if not top_news.empty:
+            for idx, row in top_news.iterrows():
                 with st.expander(row['Title']):
                     st.write(row['Summary'])
         else:
