@@ -540,7 +540,7 @@ def main():
                 st.write("Please provide more details for a specific analysis.")
     
     # ---------- Tab: Detailed Analysis ----------
-    with tabs[5]:
+    with tabs[6]:
         st.header("Detailed Data Analysis")
         st.markdown("Explore various aspects of the stock data.")
         analysis_start = st.date_input("Analysis Start Date", start_date)
@@ -561,7 +561,7 @@ def main():
                 st.error(f"Error rendering histogram: {e}")
     
     # ---------- Tab: Compare Companies ----------
-    with tabs[6]:
+    with tabs[7]:
         st.header("Compare Companies")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -631,7 +631,7 @@ def main():
                 st.error(f"Error comparing companies: {e}")
     
     # ---------- Tab: Settings ----------
-    with tabs[7]:
+    with tabs[8]:
         st.header("Application Settings")
         st.markdown("View raw data and adjust model parameters (future updates).")
         if st.checkbox("Show raw data"):
