@@ -19,7 +19,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 def additional_interactive_features(data):
     features = {}
-    features['recent_table'] = data.tail(30)
+    # Recent prices table (last 30 days)
+    features['recent_table'] = data.tail(30).round(2)
     
     # 20-Day Moving Average Chart
     data['MA20'] = data['Close'].rolling(window=20).mean()
@@ -35,14 +36,32 @@ def additional_interactive_features(data):
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
 
+    # RSI Chart (from technical indicators)
+    if 'RSI' in data.columns:
+        fig_rsi = px.line(data.reset_index(), x="Date", y="RSI", title="RSI Over Time")
+        features['rsi_chart'] = fig_rsi
+
+    # MACD Chart (MACD and Signal)
+    if 'MACD' in data.columns and 'MACD_Signal' in data.columns:
+        fig_macd = go.Figure()
+        fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD'], mode='lines', name='MACD'))
+        fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_Signal'], mode='lines', name='Signal'))
+        fig_macd.update_layout(title="MACD & Signal", xaxis_title="Date", yaxis_title="MACD")
+        features['macd_chart'] = fig_macd
+
+    # MACD Histogram Chart
+    if 'MACD_Hist' in data.columns:
+        fig_hist = px.bar(data.reset_index(), x="Date", y="MACD_Hist", title="MACD Histogram")
+        features['macd_hist_chart'] = fig_hist
+
     return features
 
 def display_about():
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
         "StockGPT is a comprehensive stock analysis and forecasting tool. "
-        "It integrates historical data, extended news sentiment (economic, political, and company-specific), "
-        "technical indicators, and multiple forecasting models with hyper-parameter tuning to deliver actionable insights."
+        "It integrates historical data, extended news sentiment (including economic and political news), "
+        "technical indicators (RSI, MACD), and multiple forecasting models with hyper-parameter tuning to deliver actionable insights."
     )
 
 def display_feedback():
@@ -52,9 +71,7 @@ def display_feedback():
         st.sidebar.success("Thank you for your feedback!")
 
 def flatten_data_columns(data):
-    """
-    Flatten multi-index columns from yfinance data if present.
-    """
+    """Flatten multi-index columns from yfinance data if present."""
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     return data
@@ -74,8 +91,17 @@ def main():
     show_ma = st.sidebar.checkbox("Show Moving Average", value=True)
     show_volatility = st.sidebar.checkbox("Show Volatility", value=True)
     
-    # Tabs
-    tabs = st.tabs(["📊 Dashboard", "📈 Charts", "🕯️ Candlestick", "🚀 Forecast", "📰 News Impact", "💡 Insights", "📌 Detailed Analysis", "⚙️ Settings"])
+    # Tabs for different sections
+    tabs = st.tabs([
+        "📊 Dashboard", 
+        "📈 Charts", 
+        "🕯️ Candlestick", 
+        "🚀 Forecast", 
+        "📰 News Impact", 
+        "💡 Insights", 
+        "📌 Detailed Analysis", 
+        "⚙️ Settings"
+    ])
     
     # Data Acquisition
     data_load_state = st.info("Fetching stock data...")
@@ -91,7 +117,7 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # Calculate technical indicators
+    # Calculate technical indicators (RSI, MACD, etc.)
     data = calculate_technical_indicators(data)
     
     # News & Sentiment Analysis
@@ -136,6 +162,15 @@ def main():
         if show_volatility:
             st.subheader("20-Day Volatility")
             st.plotly_chart(features['vol_chart'], use_container_width=True)
+        if 'rsi_chart' in features:
+            st.subheader("RSI Chart")
+            st.plotly_chart(features['rsi_chart'], use_container_width=True)
+        if 'macd_chart' in features:
+            st.subheader("MACD & Signal")
+            st.plotly_chart(features['macd_chart'], use_container_width=True)
+        if 'macd_hist_chart' in features:
+            st.subheader("MACD Histogram")
+            st.plotly_chart(features['macd_hist_chart'], use_container_width=True)
     
     with tabs[2]:
         st.header("Candlestick Chart")
@@ -200,9 +235,9 @@ def main():
         
         # Apply sentiment adjustment to forecast and confidence intervals
         best_result_adj = best_result.copy()
-        best_result_adj["forecast"] *= sentiment_factor
-        best_result_adj["lower"] *= sentiment_factor
-        best_result_adj["upper"] *= sentiment_factor
+        best_result_adj["forecast"] = best_result_adj["forecast"].round(2) * sentiment_factor
+        best_result_adj["lower"] = best_result_adj["lower"].round(2) * sentiment_factor
+        best_result_adj["upper"] = best_result_adj["upper"].round(2) * sentiment_factor
         
         forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
         forecast_df = best_result_adj.copy()
@@ -264,9 +299,9 @@ def main():
             st.error("Start date must be before end date.")
         else:
             detailed_data = data.loc[analysis_start:analysis_end]
-            st.write("Detailed Data", detailed_data)
+            st.write("Detailed Data", detailed_data.round(2))
             st.subheader("Correlation Matrix")
-            corr = detailed_data.corr()
+            corr = detailed_data.corr().round(2)
             st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
             st.subheader("Distribution of Closing Prices")
             try:
@@ -280,15 +315,9 @@ def main():
         st.markdown("Adjust application parameters and view raw data.")
         if st.checkbox("Show raw data"):
             st.subheader("Raw Data")
-            st.dataframe(data)
+            st.dataframe(data.round(2))
         st.markdown("### Model Settings")
         st.markdown("Forecasting model parameters can be adjusted here in future versions.")
-    
-    st.markdown("---")
-    st.write("© 2025 Advanced StockGPT - All rights reserved.")
-    st.markdown("### Future Enhancements")
-    st.write("More features and interactive elements will be added in future updates.")
-    st.markdown("### End of Dashboard")
 
 if __name__ == "__main__":
     main()
