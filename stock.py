@@ -25,10 +25,10 @@ def flatten_data_columns(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 def additional_interactive_features(data: pd.DataFrame):
-    """Generate interactive charts (MA, Volatility, RSI, MACD, etc.) and recent data table."""
+    """Generate charts (MA, Volatility, RSI, MACD, etc.) and a recent data table."""
     features = {}
 
-    # Keep a copy for calculations
+    # Copy for calculations
     data_calc = data.copy()
 
     # Recent 30-day prices
@@ -68,9 +68,8 @@ def additional_interactive_features(data: pd.DataFrame):
 
     return features
 
-
 def display_about():
-    """Sidebar about section."""
+    """Sidebar About section."""
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
         "StockGPT is a comprehensive stock analysis and forecasting tool. "
@@ -79,11 +78,37 @@ def display_about():
     )
 
 def display_feedback():
-    """Sidebar feedback section."""
+    """Sidebar Feedback section."""
     st.sidebar.markdown("## Feedback")
     feedback = st.sidebar.text_area("Your Feedback:")
     if st.sidebar.button("Submit Feedback"):
         st.sidebar.success("Thank you for your feedback!")
+
+def combine_historical_and_forecast(
+    data: pd.DataFrame, 
+    forecast_df: pd.DataFrame, 
+    start_date: datetime.date, 
+    end_date: datetime.date
+) -> pd.DataFrame:
+    """
+    Merge historical data with forecast data into a single DataFrame 
+    for plotting. The historical portion is labeled 'Historical' 
+    and the forecast portion is labeled 'Forecast'.
+    """
+    # Prepare historical data
+    hist_data = data.reset_index()[['Date', 'Close']].copy()
+    hist_data = hist_data[(hist_data['Date'] >= pd.to_datetime(start_date)) & (hist_data['Date'] <= pd.to_datetime(end_date))]
+    hist_data['Type'] = 'Historical'
+    hist_data.rename(columns={'Close': 'Price'}, inplace=True)
+    
+    # Prepare forecast data
+    fc_data = forecast_df[['Date', 'forecast']].copy()
+    fc_data['Type'] = 'Forecast'
+    fc_data.rename(columns={'forecast': 'Price'}, inplace=True)
+
+    # Merge
+    combined = pd.concat([hist_data, fc_data], ignore_index=True)
+    return combined
 
 def main():
     st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
@@ -94,7 +119,7 @@ def main():
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
-    forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 14)
+    forecast_days = st.sidebar.slider("Forecast Days", 7, 365, 30, help="Number of days to forecast")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Advanced Options")
@@ -135,75 +160,160 @@ def main():
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
-    # ================
+    # =================
     #  TAB: Dashboard
-    # ================
+    # =================
     with tabs[0]:
-        # Mimic the Apple Inc style page
-        st.title(f"{ticker} - Overview Page")
+        # Creative container for main info
+        st.markdown(
+            """
+            <style>
+            .price-container {
+                background-color: #f9f9f9;
+                border-radius: 8px;
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+            .price-text {
+                font-size: 2rem; 
+                font-weight: bold;
+            }
+            .change-text {
+                font-size: 1.2rem; 
+                margin-left: 1rem;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
         
+        st.title(f"{ticker} - Company Overview")
+        st.write("A creative and concise dashboard summarizing key details and forecasts.")
+        
+        # Price + sentiment container
         col1, col2 = st.columns([3, 1], gap="large")
-        
         with col1:
-            st.subheader(f"NASDAQ: {ticker}")
+            st.markdown("<div class='price-container'>", unsafe_allow_html=True)
             try:
                 current_price = data['Close'].iloc[-1]
                 prev_price = data['Close'].iloc[-2] if len(data) > 1 else current_price
                 change = current_price - prev_price
-                pct_change = (change / prev_price) * 100 if prev_price != 0 else 0
+                pct_change = (change / prev_price * 100) if prev_price != 0 else 0
                 color_style = "red" if change < 0 else "green"
                 
                 st.markdown(
                     f"""
-                    <div style='font-size: 2rem; font-weight: bold;'>
+                    <span class='price-text'>
                         ${current_price:.2f}
-                        <span style='color: {color_style}; font-size: 1.5rem;'>
-                            {change:+.2f} ({pct_change:+.2f}%)
-                        </span>
-                    </div>
+                    </span>
+                    <span class='change-text' style='color:{color_style};'>
+                        {change:+.2f} ({pct_change:+.2f}%)
+                    </span>
                     """,
                     unsafe_allow_html=True
                 )
-                st.caption(f"As of {datetime.datetime.now().strftime('%B %d, %Y %I:%M %p')} EDT")
             except Exception as e:
                 st.error(f"Error retrieving price: {e}")
+            st.caption(f"As of {datetime.datetime.now().strftime('%B %d, %Y %I:%M %p')} Local Time")
             
-            # Small line chart for recent close
-            try:
-                last_10 = data['Close'].tail(10)
-                st.line_chart(last_10, height=200)
-            except Exception as e:
-                st.error(f"Error rendering mini chart: {e}")
-        
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Option to show 1-year forecast on the same graph
+            show_1yr_forecast = st.checkbox("Show 1-Year Forecast on Chart", value=False)
+            
+            # If user wants the 1-year forecast, let's compute it with a "best model" approach
+            if show_1yr_forecast:
+                # Basic hyper-parameter tuning
+                prophet_params = tune_prophet(data)
+                arima_params = tune_arima(data['Close'])
+                lstm_params = tune_lstm(data['Close'])
+                
+                # Get 3 forecasts
+                try:
+                    prophet_result = forecast_prophet(data, 365, tuned_params=prophet_params)
+                except:
+                    prophet_result = pd.DataFrame({"forecast": np.zeros(365), "lower": np.zeros(365), "upper": np.zeros(365)})
+                try:
+                    arima_result = forecast_arima(data['Close'], 365, tuned_params=arima_params)
+                except:
+                    arima_result = pd.DataFrame({"forecast": np.zeros(365), "lower": np.zeros(365), "upper": np.zeros(365)})
+                try:
+                    lstm_result = forecast_lstm(data['Close'], 365, tuned_params=lstm_params)
+                except:
+                    lstm_result = pd.DataFrame({"forecast": np.zeros(365), "lower": np.zeros(365), "upper": np.zeros(365)})
+                
+                # Evaluate best model
+                if len(data['Close']) >= 365:
+                    actual_recent = data['Close'][-365:].values
+                else:
+                    actual_recent = prophet_result["forecast"].values
+                
+                errors = {
+                    "Prophet": np.abs(actual_recent - prophet_result["forecast"].values).mean(),
+                    "ARIMA": np.abs(actual_recent - arima_result["forecast"].values).mean(),
+                    "LSTM": np.abs(actual_recent - lstm_result["forecast"].values).mean()
+                }
+                best_model = min(errors, key=errors.get)
+                best_df = {
+                    "Prophet": prophet_result,
+                    "ARIMA": arima_result,
+                    "LSTM": lstm_result
+                }[best_model]
+                
+                # Add sentiment factor
+                best_df["forecast"] *= sentiment_factor
+                
+                # Build a 'Date' column for forecast
+                forecast_dates = pd.date_range(start=data.index[-1] + pd.Timedelta(days=1), periods=365)
+                best_df["Date"] = forecast_dates
+                
+                # Merge historical + forecast
+                merged_data = combine_historical_and_forecast(data, best_df, start_date, end_date)
+                
+                # Plot single line chart
+                fig_combo = px.line(
+                    merged_data, 
+                    x="Date", 
+                    y="Price", 
+                    color="Type", 
+                    title=f"{ticker}: Historical & 1-Year Forecast (Best Model: {best_model})"
+                )
+                st.plotly_chart(fig_combo, use_container_width=True)
+            else:
+                # Show only historical data
+                hist_data = data.reset_index()
+                fig_hist = px.line(hist_data, x="Date", y="Close", title=f"{ticker}: Historical Closing Price")
+                st.plotly_chart(fig_hist, use_container_width=True)
+            
         with col2:
-            st.markdown("### Explore more")
-            # Dummy watchlist or related companies
-            st.write("**Microsoft Corp (MSFT)** +0.78%")
+            st.markdown("### Explore More")
+            # Mock watchlist
+            st.write("**Microsoft Corp** +0.78%")
             st.write("**Samsung Electronics** +0.29%")
-            st.write("**Amazon Inc (AMZN)** +0.88%")
-            st.write("**NVIDIA Corp (NVDA)** +1.66%")
+            st.write("**Amazon Inc** +0.88%")
+            st.write("**NVIDIA Corp** +1.66%")
         
         st.markdown("---")
         
-        # Company Info (you can expand or fetch real data)
+        # Company Info based on ticker
         st.subheader(f"{ticker} Company Info")
         st.write(
-            f"{ticker} is an American multinational technology company headquartered in Cupertino, "
-            "California, United States. It designs, develops, and sells consumer electronics, "
-            "computer software, and online services."
+            f"{ticker} is an innovative technology company that develops and sells consumer electronics, "
+            "computer software, and online services. It is known for its commitment to design, "
+            "user experience, and ecosystem integration."
         )
         
-        col3, col4 = st.columns(2)
-        with col3:
+        col_info1, col_info2 = st.columns(2)
+        with col_info1:
             st.write("**CEO:** Tim Cook")
             st.write("**Founded:** April 1, 1976 (by Steve Jobs, Steve Wozniak, Ronald Wayne)")
             st.write("**Headquarters:** Cupertino, California, United States")
-        with col4:
+        with col_info2:
             st.write("**Revenue:** $365.8B (2021)")
             st.write("**Employees:** ~164,000 (2022)")
         
         st.markdown("---")
-        st.subheader("Related News")
+        st.subheader("Latest News")
         news_df = get_news_summaries(news_items)
         if not news_df.empty:
             for idx, row in news_df.iterrows():
@@ -216,7 +326,7 @@ def main():
     #  TAB: Charts
     # =================
     with tabs[1]:
-        st.header("Historical Stock Performance")
+        st.header("Historical Stock Performance & Indicators")
         price_min = float(data['Close'].min())
         price_max = float(data['Close'].max())
         selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
@@ -301,11 +411,11 @@ def main():
             st.error(f"LSTM forecasting failed: {e}")
             lstm_result = pd.DataFrame({"forecast": np.zeros(forecast_days), "lower": np.zeros(forecast_days), "upper": np.zeros(forecast_days)})
         
-        # Evaluate which model is best
+        # Evaluate best model
         if len(data['Close']) >= forecast_days:
             actual_recent = data['Close'][-forecast_days:].values
         else:
-            actual_recent = prophet_result["forecast"].values  # fallback
+            actual_recent = prophet_result["forecast"].values
         
         errors = {
             "Prophet": np.abs(actual_recent - prophet_result["forecast"].values).mean(),
@@ -330,7 +440,7 @@ def main():
         # Chart
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["forecast", "lower", "upper"], var_name="Type", value_name="Price")
         try:
-            fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title="Forecast Comparison (95% CI)")
+            fig_forecast = px.line(forecast_chart_data, x="Date", y="Price", color="Type", title=f"{ticker} Forecast Comparison ({forecast_days}-Day)")
             st.plotly_chart(fig_forecast, use_container_width=True)
         except Exception as e:
             st.error(f"Error rendering forecast chart: {e}")
@@ -340,7 +450,6 @@ def main():
     # =================
     with tabs[4]:
         st.header("News Summaries Impacting the Stock")
-        # We already fetched news_items above
         news_df = get_news_summaries(news_items)
         if not news_df.empty:
             for idx, row in news_df.iterrows():
@@ -359,12 +468,12 @@ def main():
         **Market Analysis:**
         - Positive sentiment indicates potential upward momentum.
         - Negative sentiment can be a warning sign.
-        - Technical indicators (RSI, MACD) provide more context.
+        - Technical indicators (RSI, MACD) provide deeper context.
         - Economic and political news can sway investor sentiment.
 
         **Recommendations:**
         - Consider buying if sentiment is positive and indicators are strong.
-        - If sentiment is negative, consider selling or holding.
+        - If sentiment is negative, exercise caution or consider selling.
         """)
         
         st.markdown("### Ask a Question")
