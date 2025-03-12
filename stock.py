@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 import logging
 import warnings
 
-# Import functions from modules
 from forecast_models import forecast_prophet, forecast_arima, forecast_lstm
 from nlp_utils import fetch_news, sentiment_analysis, get_news_summaries
 from additional_factors import calculate_technical_indicators
@@ -42,7 +41,8 @@ def display_about():
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
         "StockGPT is an advanced tool for analyzing and forecasting stock prices. "
-        "It integrates historical data, news sentiment, technical indicators, and multiple forecasting models with hyper-parameter tuning to provide actionable insights and interactive visualizations."
+        "It integrates historical data, extended news sentiment (including economic and political factors), "
+        "technical indicators, and multiple forecasting models with hyper-parameter tuning to provide actionable insights."
     )
 
 def display_feedback():
@@ -82,7 +82,7 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # Calculate additional technical indicators
+    # Calculate technical indicators
     data = calculate_technical_indicators(data)
     
     # News & Sentiment Analysis
@@ -93,7 +93,8 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            closing_price = data['Close'].values[-1]
+            # Use .iloc[-1] to ensure a scalar value
+            closing_price = data['Close'].iloc[-1]
             closing_display = f"${closing_price:.2f}" if not pd.isna(closing_price) else "N/A"
         except Exception as e:
             closing_display = "N/A"
@@ -109,6 +110,7 @@ def main():
         price_max = float(data['Close'].max())
         selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
         filtered_data = data[(data['Close'] >= selected_range[0]) & (data['Close'] <= selected_range[1])]
+        # Reset index to ensure 'Date' is a column
         chart_data = filtered_data.reset_index()[['Date', 'Close']].dropna()
         if chart_data.empty:
             st.error("No chart data available for the selected price range.")
@@ -131,12 +133,14 @@ def main():
     with tabs[2]:
         st.header("Candlestick Chart")
         try:
+            # Use reset_index to get a 'Date' column for x-axis
+            candle_data = data.reset_index()
             fig_candle = go.Figure(data=[go.Candlestick(
-                x=data.index,
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
+                x=candle_data['Date'],
+                open=candle_data['Open'],
+                high=candle_data['High'],
+                low=candle_data['Low'],
+                close=candle_data['Close'],
                 name=ticker
             )])
             fig_candle.update_layout(title=f"{ticker} Candlestick Chart", xaxis_title="Date", yaxis_title="Price")
@@ -186,14 +190,9 @@ def main():
             "LSTM": np.abs(actual_recent - lstm_result["forecast"].values).mean()
         }
         best_model = min(errors, key=errors.get)
-        if best_model == "Prophet":
-            best_result = prophet_result
-        elif best_model == "ARIMA":
-            best_result = arima_result
-        else:
-            best_result = lstm_result
+        best_result = prophet_result if best_model=="Prophet" else (arima_result if best_model=="ARIMA" else lstm_result)
         
-        # Apply sentiment adjustment to forecast and confidence intervals
+        # Apply sentiment adjustment
         best_result_adj = best_result.copy()
         best_result_adj["forecast"] *= sentiment_factor
         best_result_adj["lower"] *= sentiment_factor
@@ -232,19 +231,20 @@ def main():
         st.header("Insights & Recommendations")
         st.markdown("""
         **Market Analysis:**
-        - Positive sentiment usually indicates potential upward momentum.
-        - Negative sentiment can be a warning sign of downturns.
-        - Technical indicators like RSI and MACD add context to price movements.
+        - Positive sentiment indicates potential upward momentum.
+        - Negative sentiment is a warning sign.
+        - Technical indicators (RSI, MACD) add context to price movements.
+        - Economic and political news can also affect market conditions.
         
         **Recommendations:**
         - If sentiment is positive and technical indicators are favorable, consider buying.
-        - If sentiment is negative or indicators suggest overbought conditions, exercise caution.
+        - If sentiment is negative or indicators show overbought conditions, exercise caution.
         """)
         st.markdown("### Ask a Question")
         question = st.text_input("Enter your question about market trends or stock performance:")
         if st.button("Get Answer"):
             if "increase" in question.lower():
-                st.write("Stocks may increase if there is sustained positive sentiment, strong earnings, and supportive technical indicators.")
+                st.write("Stocks may increase with sustained positive sentiment, strong earnings, and supportive technical indicators.")
             elif "decrease" in question.lower():
                 st.write("Stocks might decrease if negative news and bearish technical indicators persist.")
             else:
