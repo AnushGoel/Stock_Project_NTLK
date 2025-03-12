@@ -17,7 +17,9 @@ from additional_factors import calculate_technical_indicators
 from model_tuning import tune_prophet, tune_arima, tune_lstm
 
 warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# ---------- All your helper functions and main app code follow below ----------
 
 # ---------- Custom CSS Styling ----------
 st.markdown("""
