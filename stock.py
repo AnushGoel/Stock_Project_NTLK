@@ -19,6 +19,8 @@ from model_tuning import tune_prophet, tune_arima, tune_lstm
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# ... rest of your code ...
+
 # ---------- Custom CSS Styling ----------
 st.markdown("""
     <style>
