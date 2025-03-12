@@ -1,7 +1,6 @@
 import streamlit as st
 st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
 
-# Now import everything else
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -18,7 +17,7 @@ from additional_factors import calculate_technical_indicators
 from model_tuning import tune_prophet, tune_arima, tune_lstm
 
 warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s
 
 # ---------- Custom CSS Styling ----------
 st.markdown("""
