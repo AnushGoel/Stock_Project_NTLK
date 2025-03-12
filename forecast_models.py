@@ -16,7 +16,7 @@ def forecast_prophet(data, forecast_days, tuned_params=None):
     Returns a DataFrame with columns: forecast, lower, upper.
     """
     try:
-        # Ensure that 'Date' is a column
+        # Flatten data if needed and ensure Date is a column.
         df = data.reset_index()[['Date', 'Close']].copy()
         df.rename(columns={"Close": "y"}, inplace=True)
         seasonality_mode = tuned_params.get("seasonality_mode", "additive") if tuned_params else "additive"
