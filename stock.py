@@ -40,9 +40,9 @@ def additional_interactive_features(data):
 def display_about():
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
-        "StockGPT is an advanced tool for analyzing and forecasting stock prices. "
-        "It integrates historical data, extended news sentiment (including economic and political factors), "
-        "technical indicators, and multiple forecasting models with hyper-parameter tuning to provide actionable insights."
+        "StockGPT is a comprehensive stock analysis and forecasting tool. "
+        "It integrates historical data, extended news sentiment (economic, political, and company-specific), "
+        "technical indicators, and multiple forecasting models with hyper-parameter tuning to deliver actionable insights."
     )
 
 def display_feedback():
@@ -51,13 +51,21 @@ def display_feedback():
     if st.sidebar.button("Submit Feedback"):
         st.sidebar.success("Thank you for your feedback!")
 
+def flatten_data_columns(data):
+    """
+    Flatten multi-index columns from yfinance data if present.
+    """
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    return data
+
 def main():
     st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
     display_about()
     display_feedback()
     
     # Sidebar inputs
-    ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
+    ticker = st.sidebar.text_input("📌 Stock Ticker:", "WMT").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 14)
@@ -76,6 +84,7 @@ def main():
         if data.empty:
             st.error("No data found for ticker. Please check the ticker symbol and try again.")
             return
+        data = flatten_data_columns(data)
     except Exception as e:
         st.error(f"Error fetching data: {e}")
         return
@@ -93,7 +102,6 @@ def main():
     with tabs[0]:
         st.header(f"{ticker} Overview")
         try:
-            # Use .iloc[-1] to ensure a scalar value
             closing_price = data['Close'].iloc[-1]
             closing_display = f"${closing_price:.2f}" if not pd.isna(closing_price) else "N/A"
         except Exception as e:
@@ -110,7 +118,6 @@ def main():
         price_max = float(data['Close'].max())
         selected_range = st.slider("Select Closing Price Range", min_value=price_min, max_value=price_max, value=(price_min, price_max))
         filtered_data = data[(data['Close'] >= selected_range[0]) & (data['Close'] <= selected_range[1])]
-        # Reset index to ensure 'Date' is a column
         chart_data = filtered_data.reset_index()[['Date', 'Close']].dropna()
         if chart_data.empty:
             st.error("No chart data available for the selected price range.")
@@ -133,7 +140,6 @@ def main():
     with tabs[2]:
         st.header("Candlestick Chart")
         try:
-            # Use reset_index to get a 'Date' column for x-axis
             candle_data = data.reset_index()
             fig_candle = go.Figure(data=[go.Candlestick(
                 x=candle_data['Date'],
@@ -192,7 +198,7 @@ def main():
         best_model = min(errors, key=errors.get)
         best_result = prophet_result if best_model=="Prophet" else (arima_result if best_model=="ARIMA" else lstm_result)
         
-        # Apply sentiment adjustment
+        # Apply sentiment adjustment to forecast and confidence intervals
         best_result_adj = best_result.copy()
         best_result_adj["forecast"] *= sentiment_factor
         best_result_adj["lower"] *= sentiment_factor
@@ -232,58 +238,15 @@ def main():
         st.markdown("""
         **Market Analysis:**
         - Positive sentiment indicates potential upward momentum.
-        - Negative sentiment is a warning sign.
-        - Technical indicators (RSI, MACD) add context to price movements.
-        - Economic and political news can also affect market conditions.
+        - Negative sentiment serves as a warning.
+        - Technical indicators (RSI, MACD) and economic/political news provide additional context.
         
         **Recommendations:**
-        - If sentiment is positive and technical indicators are favorable, consider buying.
-        - If sentiment is negative or indicators show overbought conditions, exercise caution.
+        - Favor buying when sentiment is positive and indicators are supportive.
+        - Exercise caution or consider selling when sentiment is negative or indicators are overbought.
         """)
         st.markdown("### Ask a Question")
         question = st.text_input("Enter your question about market trends or stock performance:")
         if st.button("Get Answer"):
             if "increase" in question.lower():
-                st.write("Stocks may increase with sustained positive sentiment, strong earnings, and supportive technical indicators.")
-            elif "decrease" in question.lower():
-                st.write("Stocks might decrease if negative news and bearish technical indicators persist.")
-            else:
-                st.write("Please provide more details or ask another question.")
-    
-    with tabs[6]:
-        st.header("Detailed Data Analysis")
-        st.markdown("Explore various aspects of the stock data.")
-        analysis_start = st.date_input("Analysis Start Date", start_date)
-        analysis_end = st.date_input("Analysis End Date", end_date)
-        if analysis_start > analysis_end:
-            st.error("Start date must be before end date.")
-        else:
-            detailed_data = data.loc[analysis_start:analysis_end]
-            st.write("Detailed Data", detailed_data)
-            st.subheader("Correlation Matrix")
-            corr = detailed_data.corr()
-            st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
-            st.subheader("Distribution of Closing Prices")
-            try:
-                fig_hist = px.histogram(detailed_data.reset_index(), x="Close", nbins=30, title="Distribution of Closing Prices")
-                st.plotly_chart(fig_hist, use_container_width=True)
-            except Exception as e:
-                st.error(f"Error rendering histogram: {e}")
-    
-    with tabs[7]:
-        st.header("Application Settings")
-        st.markdown("Adjust application parameters and view raw data.")
-        if st.checkbox("Show raw data"):
-            st.subheader("Raw Data")
-            st.dataframe(data)
-        st.markdown("### Model Settings")
-        st.markdown("Forecasting model parameters can be adjusted here in future versions.")
-    
-    st.markdown("---")
-    st.write("© 2025 Advanced StockGPT - All rights reserved.")
-    st.markdown("### Future Enhancements")
-    st.write("More features and interactive elements will be added in future updates.")
-    st.markdown("### End of Dashboard")
-
-if __name__ == "__main__":
-    main()
+                st.write("Stocks may increase if sustained positive sentiment, strong earnings, and favorable technical indicators contin
