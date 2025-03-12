@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import datetime
+import random
 import plotly.express as px
 import plotly.graph_objects as go
 import logging
@@ -17,14 +18,14 @@ from model_tuning import tune_prophet, tune_arima, tune_lstm
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# Helper: flatten yfinance multi-index columns
 def flatten_data_columns(data: pd.DataFrame) -> pd.DataFrame:
-    """Flatten multi-index columns from yfinance data if present."""
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     return data
 
+# Helper: fetch company info from yfinance
 def get_company_info(ticker: str) -> dict:
-    """Fetch company information from yfinance."""
     try:
         tk = yf.Ticker(ticker)
         info = tk.info
@@ -47,73 +48,75 @@ def get_company_info(ticker: str) -> dict:
             "fullTimeEmployees": "N/A"
         }
 
+# Helper: Generate additional news items
+def generate_additional_news() -> list:
+    additional_news = [
+        {"title": "Company Expansion Update", "Summary": "The company announced plans to expand into new markets."},
+        {"title": "AI Breakthrough Affects Market", "Summary": "Recent advances in AI technology are shifting investor sentiment."},
+        {"title": "Economic Slowdown Concerns", "Summary": "Latest economic reports suggest a slowdown in growth."},
+        {"title": "Sociopolitical Tensions Rise", "Summary": "Social unrest and political tensions are impacting consumer confidence."},
+        {"title": "Geopolitical Uncertainty", "Summary": "Geopolitical events are causing volatility in global markets."},
+        {"title": "Market Situation Update", "Summary": "Current market conditions show mixed signals, urging caution."},
+        {"title": "Employment Data Exceeds Expectations", "Summary": "Stronger-than-expected employment figures boost market optimism."},
+        {"title": "Tech Industry Regulatory Changes", "Summary": "New regulatory policies may impact technology companies."},
+    ]
+    return additional_news
+
+# Helper: Combine fetched news with additional news items
+def get_full_news_list(ticker: str) -> list:
+    news = fetch_news(ticker)
+    additional = generate_additional_news()
+    return news + additional
+
+# Additional interactive features: technical indicator charts and recent data table.
 def additional_interactive_features(data: pd.DataFrame) -> dict:
-    """Generate charts (MA, Volatility, RSI, MACD, etc.) and a recent data table."""
     features = {}
     data_calc = data.copy()
     features['recent_table'] = data_calc.tail(30).round(2)
     
-    # 20-Day Moving Average
     data_calc['MA20'] = data_calc['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
     fig_ma.add_trace(go.Scatter(
-        x=data_calc.index, 
-        y=data_calc['MA20'].round(2), 
-        mode='lines', 
-        name='MA20', 
-        line=dict(color='red')
+        x=data_calc.index, y=data_calc['MA20'].round(2),
+        mode='lines', name='MA20', line=dict(color='red')
     ))
     fig_ma.update_layout(title="20-Day Moving Average", xaxis_title="Date", yaxis_title="MA20")
     features['ma_chart'] = fig_ma
 
-    # 20-Day Volatility
     data_calc['Volatility'] = data_calc['Close'].rolling(window=20).std()
     fig_vol = go.Figure()
     fig_vol.add_trace(go.Scatter(
-        x=data_calc.index, 
-        y=data_calc['Volatility'].round(2), 
-        mode='lines', 
-        name='Volatility', 
-        line=dict(color='orange')
+        x=data_calc.index, y=data_calc['Volatility'].round(2),
+        mode='lines', name='Volatility', line=dict(color='orange')
     ))
     fig_vol.update_layout(title="20-Day Volatility", xaxis_title="Date", yaxis_title="Volatility")
     features['vol_chart'] = fig_vol
 
-    # RSI Chart (if available)
     if 'RSI' in data_calc.columns:
         fig_rsi = px.line(data_calc.reset_index(), x="Date", y="RSI", title="RSI Over Time")
         features['rsi_chart'] = fig_rsi
 
-    # MACD & Signal (if available)
     if 'MACD' in data_calc.columns and 'MACD_Signal' in data_calc.columns:
         fig_macd = go.Figure()
         fig_macd.add_trace(go.Scatter(
-            x=data_calc.index, 
-            y=data_calc['MACD'].round(2), 
-            mode='lines', 
-            name='MACD'
+            x=data_calc.index, y=data_calc['MACD'].round(2),
+            mode='lines', name='MACD'
         ))
         fig_macd.add_trace(go.Scatter(
-            x=data_calc.index, 
-            y=data_calc['MACD_Signal'].round(2), 
-            mode='lines', 
-            name='Signal'
+            x=data_calc.index, y=data_calc['MACD_Signal'].round(2),
+            mode='lines', name='Signal'
         ))
         fig_macd.update_layout(title="MACD & Signal", xaxis_title="Date", yaxis_title="MACD")
         features['macd_chart'] = fig_macd
 
-    # MACD Histogram (if available)
     if 'MACD_Hist' in data_calc.columns:
         fig_hist = px.bar(data_calc.reset_index(), x="Date", y="MACD_Hist", title="MACD Histogram")
         features['macd_hist_chart'] = fig_hist
 
     return features
 
+# Combine historical and forecast data for a combined chart.
 def combine_historical_and_forecast(data: pd.DataFrame, forecast_df: pd.DataFrame, start_date: datetime.date, end_date: datetime.date) -> pd.DataFrame:
-    """
-    Merge historical data with forecast data into a single DataFrame for plotting.
-    The historical portion is labeled 'Historical' and forecast as 'Forecast'.
-    """
     hist_data = data.reset_index()[['Date', 'Close']].copy()
     hist_data = hist_data[(hist_data['Date'] >= pd.to_datetime(start_date)) & (hist_data['Date'] <= pd.to_datetime(end_date))]
     hist_data['Type'] = 'Historical'
@@ -126,16 +129,39 @@ def combine_historical_and_forecast(data: pd.DataFrame, forecast_df: pd.DataFram
     combined = pd.concat([hist_data, fc_data], ignore_index=True)
     return combined
 
+# Get watchlist data for "Explore More" (calculates % change for preset tickers)
+def get_watchlist_data(exclude_ticker: str) -> pd.DataFrame:
+    # Preset tickers list (can be expanded)
+    tickers = ["MSFT", "AMZN", "NVDA", "GOOGL", "TSLA", "IBM", "INTC", "ORCL"]
+    if exclude_ticker in tickers:
+        tickers.remove(exclude_ticker)
+    # Download data for the last 2 days
+    df = yf.download(tickers, period="2d", group_by='ticker')
+    watchlist = []
+    for t in tickers:
+        try:
+            # For multi-ticker download, use df[t]["Close"]
+            close_prices = df[t]["Close"]
+            pct_change = ((close_prices.iloc[-1] - close_prices.iloc[-2]) / close_prices.iloc[-2] * 100)
+            watchlist.append({"Ticker": t, "PercentChange": round(pct_change, 2)})
+        except Exception as e:
+            logging.error(f"Error processing watchlist for {t}: {e}")
+    watchlist_df = pd.DataFrame(watchlist)
+    # Randomly select 4 companies
+    if not watchlist_df.empty:
+        watchlist_df = watchlist_df.sample(n=min(4, len(watchlist_df)), random_state=42)
+    return watchlist_df
+
 def main():
     st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
     
-    # Sidebar: Only Ticker, Date Range, Forecast Days
+    # Sidebar: ticker, date range, forecast days.
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs (rearranged + new Compare Companies tab)
+    # Define tabs (Company Overview, Dashboard, Charts, Forecast, News Impact, Insights, Detailed Analysis, Compare Companies, Settings)
     tabs = st.tabs([
         "🏢 Company Overview", 
         "📊 Dashboard", 
@@ -148,7 +174,7 @@ def main():
         "⚙️ Settings"
     ])
     
-    # Fetch Data
+    # Fetch stock data.
     data_load_state = st.info("Fetching stock data...")
     try:
         data = yf.download(ticker, start=start_date, end=end_date)
@@ -162,13 +188,15 @@ def main():
     data_load_state.success("Data fetched successfully!")
     data.index.name = "Date"
     
-    # Compute technical indicators
+    # Compute technical indicators.
     data = calculate_technical_indicators(data)
     
-    # Fetch news & compute sentiment
-    # For demonstration, assume fetch_news now returns a larger list (50-60 items)
-    news_items = fetch_news(ticker)
-    sentiment_score = sentiment_analysis(news_items)
+    # Fetch company info.
+    comp_info = get_company_info(ticker)
+    
+    # Fetch news and combine with additional news.
+    news_items = get_news_summaries(get_full_news_list(ticker))
+    sentiment_score = sentiment_analysis(get_full_news_list(ticker))
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
     # ================
@@ -177,7 +205,6 @@ def main():
     with tabs[0]:
         st.markdown("<style>.header {font-size:2.5rem; font-weight:bold; color:#333;}</style>", unsafe_allow_html=True)
         st.markdown("<div class='header'>Company Overview</div>", unsafe_allow_html=True)
-        comp_info = get_company_info(ticker)
         st.image(comp_info["logo_url"], width=150)
         if comp_info["website"] != "N/A":
             st.markdown(f"**Website:** [Visit]({comp_info['website']})")
@@ -215,13 +242,11 @@ def main():
                     """,
                     unsafe_allow_html=True
                 )
-                # Use system's local time (without seconds)
                 local_time = datetime.datetime.now().astimezone().strftime("%B %d, %Y %I:%M %p %Z")
                 st.caption(f"As of {local_time}")
             except Exception as e:
                 st.error(f"Error retrieving price: {e}")
             
-            # Display interactive candlestick chart with closing price overlay
             st.markdown("### Interactive Candlestick Chart")
             try:
                 candle_data = data.reset_index()
@@ -239,7 +264,6 @@ def main():
                         for d, o, h, l, c in zip(candle_data["Date"], candle_data["Open"], candle_data["High"], candle_data["Low"], candle_data["Close"])
                     ]
                 )])
-                # Add overlay line trace for closing price
                 fig_candle.add_trace(go.Scatter(
                     x=candle_data["Date"],
                     y=candle_data["Close"].round(2),
@@ -252,7 +276,6 @@ def main():
             except Exception as e:
                 st.error(f"Error rendering candlestick chart: {e}")
             
-            # Display historical price line chart
             st.markdown("### Historical Price Chart")
             hist_data = data.reset_index()[["Date", "Close"]].copy()
             hist_data["Close"] = hist_data["Close"].round(2)
@@ -260,10 +283,13 @@ def main():
             st.plotly_chart(fig_hist, use_container_width=True)
         with col2:
             st.markdown("### Explore More")
-            st.write("**Microsoft Corp (MSFT)** +0.78%")
-            st.write("**Samsung Electronics** +0.29%")
-            st.write("**Amazon Inc (AMZN)** +0.88%")
-            st.write("**NVIDIA Corp (NVDA)** +1.66%")
+            watchlist_df = get_watchlist_data(ticker)
+            if not watchlist_df.empty:
+                for idx, row in watchlist_df.iterrows():
+                    sign = "+" if row["PercentChange"] >= 0 else ""
+                    st.write(f"**{row['Ticker']}** {sign}{row['PercentChange']}%")
+            else:
+                st.write("No watchlist data available.")
         
         st.markdown("---")
         st.subheader("Latest News")
@@ -350,21 +376,18 @@ def main():
         best_model = min(errors, key=errors.get)
         best_result = {"Prophet": prophet_result, "ARIMA": arima_result, "LSTM": lstm_result}[best_model]
         best_result_adj = best_result.copy()
-        # Apply sentiment factor already computed in best_result_adj if needed
         best_result_adj["forecast"] = best_result_adj["forecast"].round(2)
         best_result_adj["lower"] = best_result_adj["lower"].round(2)
         best_result_adj["upper"] = best_result_adj["upper"].round(2)
-        # Create a new Impact Forecast column based on sentiment:
+        # Create Impact Forecast: if sentiment positive, increase by 5%*abs(sentiment), else decrease.
         if sentiment_score >= 0:
             best_result_adj["Impact Forecast"] = (best_result_adj["forecast"] * (1 + abs(sentiment_score) * 0.05)).round(2)
         else:
             best_result_adj["Impact Forecast"] = (best_result_adj["forecast"] * (1 - abs(sentiment_score) * 0.05)).round(2)
         
         forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
-        # Rearrange columns: Date, Forecast, Impact Forecast, Lower, Upper
-        forecast_df = best_result_adj.copy()
-        forecast_df["Date"] = forecast_dates
-        forecast_df = forecast_df[["Date", "forecast", "Impact Forecast", "lower", "upper"]]
+        best_result_adj["Date"] = forecast_dates
+        forecast_df = best_result_adj[["Date", "forecast", "Impact Forecast", "lower", "upper"]]
         st.success(f"Best Forecast Model: **{best_model}** | MAE: {errors[best_model]:.2f} | Sentiment Score: {sentiment_score:.2f}")
         st.dataframe(forecast_df.style.format({
             "forecast": "${:,.2f}", 
@@ -385,8 +408,8 @@ def main():
     # ================
     with tabs[4]:
         st.header("News Impact")
-        # Simulate a larger set of news items (50-60 items)
-        news_df = get_news_summaries(news_items)
+        full_news = get_full_news_list(ticker)
+        news_df = get_news_summaries(full_news)
         st.write(f"Total news items: {len(news_df)}")
         if not news_df.empty:
             for idx, row in news_df.iterrows():
@@ -397,7 +420,7 @@ def main():
             st.write("No news items available.")
     
     # ================
-    # TAB: Insights
+    # TAB: Insights & Recommendations
     # ================
     with tabs[5]:
         st.header("Insights & Recommendations")
@@ -406,7 +429,7 @@ def main():
         - Positive sentiment indicates potential upward momentum.
         - Negative sentiment is a warning signal.
         - Technical indicators (RSI, MACD) provide deeper context.
-        - Broader economic and political events also influence market trends.
+        - Broader economic, political, and social events also influence market trends.
         
         **Recommendations:**
         - Consider buying if sentiment and indicators are favorable.
@@ -416,16 +439,16 @@ def main():
         question = st.text_input("Enter your question about market trends or stock performance:")
         if st.button("Get Answer"):
             if "increase" in question.lower():
-                st.write("Stocks may increase if sustained positive sentiment, strong earnings, and favorable technical indicators persist.")
+                st.write("Stocks may increase if sustained positive sentiment, strong earnings, and favorable technical indicators continue.")
             elif "decrease" in question.lower():
-                st.write("Stocks might decrease if negative news and bearish technical indicators continue.")
+                st.write("Stocks might decrease if negative news and bearish technical indicators persist.")
             else:
                 st.write("Please provide more details for a specific analysis.")
     
     # ================
     # TAB: Detailed Analysis
     # ================
-    with tabs[6]:
+    with tabs[5]:
         st.header("Detailed Data Analysis")
         st.markdown("Explore various aspects of the stock data.")
         analysis_start = st.date_input("Analysis Start Date", start_date)
@@ -448,7 +471,7 @@ def main():
     # ================
     # TAB: Compare Companies
     # ================
-    with tabs[7]:
+    with tabs[6]:
         st.header("Compare Companies")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -478,7 +501,7 @@ def main():
     # ================
     # TAB: Settings
     # ================
-    with tabs[8]:
+    with tabs[7]:
         st.header("Application Settings")
         st.markdown("View raw data and adjust model parameters (future updates).")
         if st.checkbox("Show raw data"):
