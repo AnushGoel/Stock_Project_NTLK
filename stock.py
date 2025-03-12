@@ -158,14 +158,16 @@ def additional_interactive_features(data):
     if "Date" not in df_data.columns:
         df_data.rename(columns={'index': 'Date'}, inplace=True)
     
-    # Ensure that the "Volume" column exists and is numeric
+    # Ensure that the "Volume" column exists and is numeric.
     if 'Volume' not in df_data.columns:
         df_data['Volume'] = 0
     else:
-        # Check if 'Volume' is a DataFrame; if so, squeeze it into a Series
-        if isinstance(df_data['Volume'], pd.DataFrame):
-            df_data['Volume'] = df_data['Volume'].squeeze(axis=1)
-        df_data['Volume'] = pd.to_numeric(df_data['Volume'], errors='coerce').fillna(0)
+        volume_data = df_data['Volume']
+        # If the volume data is a DataFrame (not a Series), take its first column.
+        if isinstance(volume_data, pd.DataFrame):
+            volume_data = volume_data.iloc[:, 0]
+        # Convert to numeric
+        df_data['Volume'] = pd.to_numeric(volume_data, errors='coerce').fillna(0)
     
     # Build Volume Chart using the prepared DataFrame
     fig_volume = px.bar(df_data, x='Date', y='Volume', title="Volume Chart")
