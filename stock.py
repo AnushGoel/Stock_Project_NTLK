@@ -16,6 +16,8 @@ from nlp_utils import fetch_news, sentiment_analysis, get_news_summaries
 from additional_factors import calculate_technical_indicators
 from model_tuning import tune_prophet, tune_arima, tune_lstm
 
+# ... rest of your code ...
+
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
