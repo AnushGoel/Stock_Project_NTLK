@@ -471,6 +471,9 @@ def main():
     # ================
     # TAB: Compare Companies
     # ================
+        # =================
+    # TAB: Compare Companies
+    # =================
     with tabs[6]:
         st.header("Compare Companies")
         col_a, col_b = st.columns(2)
@@ -487,16 +490,44 @@ def main():
                 data2 = flatten_data_columns(data2)
                 data1.index.name = "Date"
                 data2.index.name = "Date"
+                
+                # Compare Closing Prices
                 df1 = data1.reset_index()[["Date", "Close"]].copy()
                 df1["Ticker"] = ticker1
                 df2 = data2.reset_index()[["Date", "Close"]].copy()
                 df2["Ticker"] = ticker2
                 comp_df = pd.concat([df1, df2], ignore_index=True)
                 comp_df["Close"] = comp_df["Close"].round(2)
-                fig_comp = px.line(comp_df, x="Date", y="Close", color="Ticker", title=f"Comparison: {ticker1} vs. {ticker2}")
-                st.plotly_chart(fig_comp, use_container_width=True)
+                fig_close = px.line(comp_df, x="Date", y="Close", color="Ticker",
+                                    title=f"Closing Price Comparison: {ticker1} vs. {ticker2}")
+                st.plotly_chart(fig_close, use_container_width=True)
+                
+                # Compare Trading Volumes
+                df1_vol = data1.reset_index()[["Date", "Volume"]].copy()
+                df1_vol["Ticker"] = ticker1
+                df2_vol = data2.reset_index()[["Date", "Volume"]].copy()
+                df2_vol["Ticker"] = ticker2
+                comp_vol = pd.concat([df1_vol, df2_vol], ignore_index=True)
+                comp_vol["Volume"] = comp_vol["Volume"].round(0)
+                fig_vol = px.bar(comp_vol, x="Date", y="Volume", color="Ticker",
+                                 title=f"Trading Volume Comparison: {ticker1} vs. {ticker2}")
+                st.plotly_chart(fig_vol, use_container_width=True)
+                
+                # Compare 20-Day Moving Average (MA20)
+                data1["MA20"] = data1["Close"].rolling(window=20).mean()
+                data2["MA20"] = data2["Close"].rolling(window=20).mean()
+                df1_ma = data1.reset_index()[["Date", "MA20"]].copy()
+                df1_ma["Ticker"] = ticker1
+                df2_ma = data2.reset_index()[["Date", "MA20"]].copy()
+                df2_ma["Ticker"] = ticker2
+                comp_ma = pd.concat([df1_ma, df2_ma], ignore_index=True)
+                comp_ma["MA20"] = comp_ma["MA20"].round(2)
+                fig_ma = px.line(comp_ma, x="Date", y="MA20", color="Ticker",
+                                 title=f"20-Day Moving Average Comparison: {ticker1} vs. {ticker2}")
+                st.plotly_chart(fig_ma, use_container_width=True)
             except Exception as e:
                 st.error(f"Error comparing companies: {e}")
+
     
     # ================
     # TAB: Settings
