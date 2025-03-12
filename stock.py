@@ -1,4 +1,3 @@
-# main.py
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -151,25 +150,28 @@ def additional_interactive_features(data):
     Returns a dictionary of data tables and Plotly figures.
     """
     features = {}
-    # Recent 30-day prices
-    features['recent_table'] = data.tail(30)
     
-    # Handle Volume column:
-    if 'Volume' not in data.columns:
-        data['Volume'] = 0
+    # Prepare a copy of data with reset index for charts
+    df_data = data.copy().reset_index()
+    
+    # Ensure that the date column is named "Date"
+    if "Date" not in df_data.columns:
+        df_data.rename(columns={'index': 'Date'}, inplace=True)
+    
+    # Ensure that the "Volume" column exists and is numeric
+    if 'Volume' not in df_data.columns:
+        df_data['Volume'] = 0
     else:
-        vol = data['Volume']
-        if isinstance(vol, pd.DataFrame):
-            vol = vol.squeeze(axis=1)
-        vol_numeric = pd.to_numeric(vol, errors='coerce').fillna(0)
-        data = data.copy()  # Work on a copy
-        data['Volume'] = vol_numeric
+        df_data['Volume'] = pd.to_numeric(df_data['Volume'], errors='coerce').fillna(0)
     
-    # Build Volume Chart (no .tolist() needed)
-    fig_volume = px.bar(data.reset_index(), x='Date', y='Volume', title="Volume Chart")
+    # Build Volume Chart using the prepared DataFrame
+    fig_volume = px.bar(df_data, x='Date', y='Volume', title="Volume Chart")
     features['volume_chart'] = fig_volume
 
-    # 20-Day Moving Average Chart
+    # Recent 30-day prices from the original data
+    features['recent_table'] = data.tail(30)
+    
+    # 20-Day Moving Average Chart (using original data's index)
     data['MA20'] = data['Close'].rolling(window=20).mean()
     fig_ma = go.Figure()
     fig_ma.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20', line=dict(color='red')))
