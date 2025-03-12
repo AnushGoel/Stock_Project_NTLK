@@ -1,5 +1,6 @@
-# design.py
 import streamlit as st
+st.set_page_config(page_title="📈 Advanced StockGPT", layout="wide")
+
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -18,7 +19,7 @@ from model_tuning import tune_prophet, tune_arima, tune_lstm
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# ---------- Custom CSS ----------
+# ---------- Custom CSS Styling ----------
 st.markdown("""
     <style>
     .header {font-size:2.5rem; font-weight:bold; color:#333;}
@@ -132,7 +133,6 @@ def get_watchlist_data(exclude_ticker: str) -> pd.DataFrame:
     return watchlist_df
 
 def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, ticker2: str) -> str:
-    """Generate an AI-based comparison summary between two companies in bullet points."""
     avg1 = data1["Close"].mean()
     avg2 = data2["Close"].mean()
     vol1 = data1["Volume"].mean() if "Volume" in data1.columns else None
@@ -141,9 +141,9 @@ def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, 
     lines.append(f"• **{ticker1} Average Closing Price:** ${avg1:.2f}")
     lines.append(f"• **{ticker2} Average Closing Price:** ${avg2:.2f}")
     if avg1 > avg2:
-        lines.append(f"• **Price Performance:** {ticker1} appears to be outperforming {ticker2} in terms of price levels.")
+        lines.append(f"• **Price Performance:** {ticker1} appears to be outperforming {ticker2}.")
     else:
-        lines.append(f"• **Price Performance:** {ticker2} appears to be outperforming {ticker1} in terms of price levels.")
+        lines.append(f"• **Price Performance:** {ticker2} appears to be outperforming {ticker1}.")
     if vol1 and vol2:
         lines.append(f"• **Average Trading Volume:** {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
     return "<br>".join(lines)
@@ -158,7 +158,7 @@ def main():
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs.
+    # Define tabs
     tabs = st.tabs([
         "🏢 Company Overview", 
         "📊 Dashboard", 
@@ -191,9 +191,9 @@ def main():
     # Fetch company info.
     comp_info = get_company_info(ticker)
     
-    # Fetch news from NewsAPI (no dummy news) and combine with additional news if needed.
+    # Fetch real news from NewsAPI.
     news_items = fetch_news(ticker)
-    full_news = get_news_summaries(news_items)  # Using real news from API.
+    full_news = get_news_summaries(news_items)
     sentiment_score = sentiment_analysis(news_items)
     sentiment_factor = 1 + (sentiment_score * 0.05)
     
@@ -213,6 +213,7 @@ def main():
     # ---------- Tab: Dashboard ----------
     with tabs[1]:
         st.markdown(f"<div class='header'>{ticker} Dashboard</div>", unsafe_allow_html=True)
+        
         col1, col2 = st.columns([3, 1])
         with col1:
             try:
@@ -273,7 +274,6 @@ def main():
             fig_hist = px.line(hist_data, x="Date", y="Close", title=f"{ticker} Historical Prices", labels={"Close": "Price ($)"})
             st.plotly_chart(fig_hist, use_container_width=True)
             
-            # Financial Metrics Section
             st.markdown("### Financial Metrics")
             try:
                 annual_return = (data["Close"].iloc[-1] / data["Close"].iloc[0] - 1) * 100
@@ -389,7 +389,7 @@ def main():
             best_result_adj["Impact Forecast"] = (best_result_adj["forecast"] * (1 - abs(sentiment_score) * 0.05)).round(2)
         
         forecast_dates = pd.date_range(start=end_date, periods=forecast_days+1)[1:]
-        best_result_adj["Date"] = forecast_dates.date  # Only date
+        best_result_adj["Date"] = forecast_dates.date
         forecast_df = best_result_adj[["Date", "forecast", "Impact Forecast", "lower", "upper"]]
         st.success(f"Best Forecast Model: **{best_model}** | MAE: {errors[best_model]:.2f} | Sentiment Score: {sentiment_score:.2f}")
         st.dataframe(forecast_df.style.format({
@@ -445,7 +445,7 @@ def main():
                 st.write("Please provide more details for a specific analysis.")
     
     # ---------- Tab: Detailed Analysis ----------
-    with tabs[6]:
+    with tabs[5]:
         st.header("Detailed Data Analysis")
         st.markdown("Explore various aspects of the stock data.")
         analysis_start = st.date_input("Analysis Start Date", start_date)
@@ -466,7 +466,7 @@ def main():
                 st.error(f"Error rendering histogram: {e}")
     
     # ---------- Tab: Compare Companies ----------
-    with tabs[7]:
+    with tabs[6]:
         st.header("Compare Companies")
         col_a, col_b = st.columns(2)
         with col_a:
@@ -483,27 +483,26 @@ def main():
                 data1.index.name = "Date"
                 data2.index.name = "Date"
                 
-                # Compare Closing Prices
                 df1 = data1.reset_index()[["Date", "Close"]].copy()
                 df1["Ticker"] = ticker1
                 df2 = data2.reset_index()[["Date", "Close"]].copy()
                 df2["Ticker"] = ticker2
                 comp_df = pd.concat([df1, df2], ignore_index=True)
                 comp_df["Close"] = comp_df["Close"].round(2)
-                fig_close = px.line(comp_df, x="Date", y="Close", color="Ticker", title=f"Closing Price Comparison: {ticker1} vs. {ticker2}")
+                fig_close = px.line(comp_df, x="Date", y="Close", color="Ticker",
+                                    title=f"Closing Price Comparison: {ticker1} vs. {ticker2}")
                 st.plotly_chart(fig_close, use_container_width=True)
                 
-                # Compare Trading Volumes
                 df1_vol = data1.reset_index()[["Date", "Volume"]].copy()
                 df1_vol["Ticker"] = ticker1
                 df2_vol = data2.reset_index()[["Date", "Volume"]].copy()
                 df2_vol["Ticker"] = ticker2
                 comp_vol = pd.concat([df1_vol, df2_vol], ignore_index=True)
                 comp_vol["Volume"] = comp_vol["Volume"].round(0)
-                fig_vol = px.bar(comp_vol, x="Date", y="Volume", color="Ticker", title=f"Trading Volume Comparison: {ticker1} vs. {ticker2}")
+                fig_vol = px.bar(comp_vol, x="Date", y="Volume", color="Ticker",
+                                 title=f"Trading Volume Comparison: {ticker1} vs. {ticker2}")
                 st.plotly_chart(fig_vol, use_container_width=True)
                 
-                # Compare 20-Day Moving Average
                 data1["MA20"] = data1["Close"].rolling(window=20).mean()
                 data2["MA20"] = data2["Close"].rolling(window=20).mean()
                 df1_ma = data1.reset_index()[["Date", "MA20"]].copy()
@@ -512,33 +511,18 @@ def main():
                 df2_ma["Ticker"] = ticker2
                 comp_ma = pd.concat([df1_ma, df2_ma], ignore_index=True)
                 comp_ma["MA20"] = comp_ma["MA20"].round(2)
-                fig_ma = px.line(comp_ma, x="Date", y="MA20", color="Ticker", title=f"20-Day MA Comparison: {ticker1} vs. {ticker2}")
+                fig_ma = px.line(comp_ma, x="Date", y="MA20", color="Ticker",
+                                 title=f"20-Day MA Comparison: {ticker1} vs. {ticker2}")
                 st.plotly_chart(fig_ma, use_container_width=True)
                 
-                # AI-based Comparison
                 st.subheader("Final Verdict")
-                def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, ticker2: str) -> str:
-                    avg1 = data1["Close"].mean()
-                    avg2 = data2["Close"].mean()
-                    vol1 = data1["Volume"].mean() if "Volume" in data1.columns else None
-                    vol2 = data2["Volume"].mean() if "Volume" in data2.columns else None
-                    lines = []
-                    lines.append(f"• **{ticker1} Average Closing Price:** ${avg1:.2f}")
-                    lines.append(f"• **{ticker2} Average Closing Price:** ${avg2:.2f}")
-                    if avg1 > avg2:
-                        lines.append(f"• **Price Performance:** {ticker1} appears to be outperforming {ticker2}.")
-                    else:
-                        lines.append(f"• **Price Performance:** {ticker2} appears to be outperforming {ticker1}.")
-                    if vol1 and vol2:
-                        lines.append(f"• **Average Trading Volume:** {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
-                    return "<br>".join(lines)
                 ai_comparison = ai_based_comparison(data1, data2, ticker1, ticker2)
                 st.markdown(f"<div class='verdict'>{ai_comparison}</div>", unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error comparing companies: {e}")
     
     # ---------- Tab: Settings ----------
-    with tabs[8]:
+    with tabs[7]:
         st.header("Application Settings")
         st.markdown("View raw data and adjust model parameters (future updates).")
         if st.checkbox("Show raw data"):
