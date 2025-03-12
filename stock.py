@@ -1,3 +1,4 @@
+# design.py
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -8,7 +9,7 @@ import plotly.graph_objects as go
 import logging
 import warnings
 
-# Import functions from our modules
+# Import functions from modules
 from forecast_models import forecast_prophet, forecast_arima, forecast_lstm
 from nlp_utils import fetch_news, sentiment_analysis, get_news_summaries
 from additional_factors import calculate_technical_indicators
@@ -40,7 +41,8 @@ def additional_interactive_features(data):
 def display_about():
     st.sidebar.markdown("## About StockGPT")
     st.sidebar.info(
-        "StockGPT is an advanced tool for analyzing and forecasting stock prices. It integrates historical data, news sentiment, technical indicators, and multiple forecasting models with hyper-parameter tuning to provide actionable insights and interactive visualizations."
+        "StockGPT is an advanced tool for analyzing and forecasting stock prices. "
+        "It integrates historical data, news sentiment, technical indicators, and multiple forecasting models with hyper-parameter tuning to provide actionable insights and interactive visualizations."
     )
 
 def display_feedback():
@@ -144,7 +146,7 @@ def main():
     
     with tabs[3]:
         st.header("Stock Price Forecast")
-        st.write("Forecasting using Prophet, ARIMA, and LSTM models with hyper tuning in the background.")
+        st.write("Forecasting using Prophet, ARIMA, and LSTM models with hyper-parameter tuning in the background.")
         
         # Tuning models (simulated)
         prophet_params = tune_prophet(data)
@@ -173,7 +175,6 @@ def main():
                                         "lower": np.zeros(forecast_days),
                                         "upper": np.zeros(forecast_days)})
         
-        # For demonstration, we select the best model based on a simulated MAE using the last forecast_days of actual data.
         if len(data['Close']) >= forecast_days:
             actual_recent = data['Close'][-forecast_days:].values
         else:
@@ -192,7 +193,7 @@ def main():
         else:
             best_result = lstm_result
         
-        # Apply sentiment adjustment to the forecast price and confidence interval
+        # Apply sentiment adjustment to forecast and confidence intervals
         best_result_adj = best_result.copy()
         best_result_adj["forecast"] *= sentiment_factor
         best_result_adj["lower"] *= sentiment_factor
@@ -208,7 +209,6 @@ def main():
             "upper": "${:,.2f}"
         }))
         
-        # Plot forecast comparison
         forecast_chart_data = forecast_df.melt(id_vars="Date", value_vars=["forecast", "lower", "upper"],
                                                var_name="Type", value_name="Price")
         try:
