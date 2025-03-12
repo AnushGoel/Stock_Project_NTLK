@@ -249,4 +249,46 @@ def main():
         question = st.text_input("Enter your question about market trends or stock performance:")
         if st.button("Get Answer"):
             if "increase" in question.lower():
-                st.write("Stocks may increase if sustained positive sentiment, strong earnings, and favorable technical indicators contin
+                st.write("Stocks may increase if sustained positive sentiment, strong earnings, and favorable technical indicators continue.")
+            elif "decrease" in question.lower():
+                st.write("Stocks might decrease if negative news and bearish technical indicators persist.")
+            else:
+                st.write("Please provide more details or ask another question.")
+    
+    with tabs[6]:
+        st.header("Detailed Data Analysis")
+        st.markdown("Explore various aspects of the stock data.")
+        analysis_start = st.date_input("Analysis Start Date", start_date)
+        analysis_end = st.date_input("Analysis End Date", end_date)
+        if analysis_start > analysis_end:
+            st.error("Start date must be before end date.")
+        else:
+            detailed_data = data.loc[analysis_start:analysis_end]
+            st.write("Detailed Data", detailed_data)
+            st.subheader("Correlation Matrix")
+            corr = detailed_data.corr()
+            st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
+            st.subheader("Distribution of Closing Prices")
+            try:
+                fig_hist = px.histogram(detailed_data.reset_index(), x="Close", nbins=30, title="Distribution of Closing Prices")
+                st.plotly_chart(fig_hist, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error rendering histogram: {e}")
+    
+    with tabs[7]:
+        st.header("Application Settings")
+        st.markdown("Adjust application parameters and view raw data.")
+        if st.checkbox("Show raw data"):
+            st.subheader("Raw Data")
+            st.dataframe(data)
+        st.markdown("### Model Settings")
+        st.markdown("Forecasting model parameters can be adjusted here in future versions.")
+    
+    st.markdown("---")
+    st.write("© 2025 Advanced StockGPT - All rights reserved.")
+    st.markdown("### Future Enhancements")
+    st.write("More features and interactive elements will be added in future updates.")
+    st.markdown("### End of Dashboard")
+
+if __name__ == "__main__":
+    main()
