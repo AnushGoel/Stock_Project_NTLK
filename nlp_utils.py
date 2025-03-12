@@ -20,7 +20,7 @@ except LookupError:
 def summarize_text(text, sentences_count=2):
     """
     Summarize text using Sumy's TextRank algorithm.
-    If a LookupError occurs (e.g. missing punkt), attempt to download and retry.
+    If a LookupError occurs, attempt to download the resource and retry.
     On failure, fall back to a basic summarization.
     """
     try:
@@ -78,16 +78,25 @@ def sentiment_analysis(news_items):
         return 0.0
 
 def fetch_news(ticker):
+    """
+    Return a list of dummy news items including economic and political news.
+    """
     try:
         dummy_news = [
             {"title": f"{ticker} hits record high in US markets", 
-             "content": f"The stock {ticker} has reached a record high in the US market due to strong earnings and positive investor sentiment. Analysts are optimistic about the growth prospects."},
+             "content": f"{ticker} has reached a record high due to strong earnings and positive investor sentiment."},
             {"title": f"Concerns over {ticker}'s supply chain", 
-             "content": f"Recent reports indicate potential disruptions in the supply chain for {ticker}, which could affect future performance and lead to a downturn in investor confidence."},
+             "content": f"Reports indicate disruptions in the supply chain for {ticker}, possibly affecting future performance."},
             {"title": f"{ticker} announces new product line", 
-             "content": f"{ticker} is set to launch a new product line that is expected to boost sales and improve market share across the US and global markets."},
+             "content": f"{ticker} is launching a new product line expected to boost sales and market share."},
+            {"title": "Economic Growth Slows", 
+             "content": "Recent economic reports indicate slower growth, which could affect consumer spending and overall market conditions."},
+            {"title": "Political Uncertainty in Key Markets", 
+             "content": "Political instability in major markets is raising concerns among investors about potential regulatory changes."},
+            {"title": "Global Trade Tensions Ease", 
+             "content": "Improvement in global trade negotiations is expected to benefit multinational companies and overall market sentiment."},
         ]
-        logging.info("Fetched dummy news for ticker: %s", ticker)
+        logging.info("Fetched extended dummy news for ticker: %s", ticker)
         return dummy_news
     except Exception as e:
         logging.error("Error in fetch_news: %s", e)
