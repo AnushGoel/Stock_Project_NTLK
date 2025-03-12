@@ -24,8 +24,9 @@ import warnings
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Download NLTK VADER lexicon for sentiment analysis
+# Download NLTK resources needed
 nltk.download('vader_lexicon', quiet=True)
+nltk.download('punkt', quiet=True)
 
 # =============================================================================
 # Helper Functions
