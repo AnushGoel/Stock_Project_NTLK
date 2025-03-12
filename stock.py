@@ -16,8 +16,6 @@ from nlp_utils import fetch_news, sentiment_analysis, get_news_summaries
 from additional_factors import calculate_technical_indicators
 from model_tuning import tune_prophet, tune_arima, tune_lstm
 
-# ... rest of your code ...
-
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -160,7 +158,7 @@ def main():
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs
+    # Define tabs.
     tabs = st.tabs([
         "🏢 Company Overview", 
         "📊 Dashboard", 
@@ -193,7 +191,7 @@ def main():
     # Fetch company info.
     comp_info = get_company_info(ticker)
     
-    # Fetch real news from NewsAPI.
+    # Fetch real news and compute sentiment.
     news_items = fetch_news(ticker)
     full_news = get_news_summaries(news_items)
     sentiment_score = sentiment_analysis(news_items)
@@ -485,6 +483,7 @@ def main():
                 data1.index.name = "Date"
                 data2.index.name = "Date"
                 
+                # Compare Closing Prices
                 df1 = data1.reset_index()[["Date", "Close"]].copy()
                 df1["Ticker"] = ticker1
                 df2 = data2.reset_index()[["Date", "Close"]].copy()
@@ -495,6 +494,7 @@ def main():
                                     title=f"Closing Price Comparison: {ticker1} vs. {ticker2}")
                 st.plotly_chart(fig_close, use_container_width=True)
                 
+                # Compare Trading Volumes
                 df1_vol = data1.reset_index()[["Date", "Volume"]].copy()
                 df1_vol["Ticker"] = ticker1
                 df2_vol = data2.reset_index()[["Date", "Volume"]].copy()
@@ -505,6 +505,7 @@ def main():
                                  title=f"Trading Volume Comparison: {ticker1} vs. {ticker2}")
                 st.plotly_chart(fig_vol, use_container_width=True)
                 
+                # Compare 20-Day Moving Average
                 data1["MA20"] = data1["Close"].rolling(window=20).mean()
                 data2["MA20"] = data2["Close"].rolling(window=20).mean()
                 df1_ma = data1.reset_index()[["Date", "MA20"]].copy()
