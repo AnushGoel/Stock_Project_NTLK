@@ -168,14 +168,15 @@ def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, 
 
 # ---------- Main App ----------
 def main():
-    # Do not call st.set_page_config() here!
+    # st.set_page_config() must be first in the file and is already called at the very top.
+    
     # Sidebar inputs
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
     start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
-    # Define tabs.
+    # Define tabs
     tabs = st.tabs([
         "🏢 Company Overview", 
         "📊 Dashboard", 
@@ -208,7 +209,7 @@ def main():
     # Fetch company info.
     comp_info = get_company_info(ticker)
     
-    # Fetch real news and compute sentiment.
+    # Fetch real news (no dummy news).
     news_items = fetch_news(ticker)
     full_news = get_news_summaries(news_items)
     sentiment_score = sentiment_analysis(news_items)
