@@ -3,7 +3,7 @@ import random
 import nltk
 import logging
 import pandas as pd
-import numpy as np
+import numpy as np 
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
