@@ -626,19 +626,6 @@ def main():
                 st.plotly_chart(fig_avg_vol, use_container_width=True)
 
                 # Final Verdict
-               st.markdown("<div class='verdict-title'><b>Final Verdict</b></div>", unsafe_allow_html=True)
-
-                try:
-                   ai_comparison_html = ai_based_comparison(data1, data2, ticker1, ticker2)
-                   formatted_html = f"<div class='verdict'>{ai_comparison_html}</div>"
-
-    # Ensure HTML formatting is applied properly
-                   st.markdown(formatted_html, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Error comparing companies: {e}")
-
-                
-                # Final Verdict
                 st.markdown("<div class='verdict-title'>Final Verdict</div>", unsafe_allow_html=True)
                 ai_comparison_html = ai_based_comparison(data1, data2, ticker1, ticker2)
                 st.markdown(f"<div class='verdict'>{ai_comparison_html}</div>", unsafe_allow_html=True)
