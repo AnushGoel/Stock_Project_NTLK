@@ -3,7 +3,7 @@ import random
 import nltk
 import logging
 import pandas as pd
-import numpy as np 
+import numpy as np
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -62,9 +62,9 @@ def fetch_news(ticker):
             seen_titles.add(title)
             unique_articles.append(article)
     
-    # If more than 150 unique articles, randomly sample 150.
-    if len(unique_articles) > 150:
-        unique_articles = random.sample(unique_articles, 150)
+    # If more than 100 unique articles, randomly sample 100.
+    if len(unique_articles) > 100:
+        unique_articles = random.sample(unique_articles, 100)
     
     logging.info("Fetched %d unique news articles for ticker: %s", len(unique_articles), ticker)
     return unique_articles
