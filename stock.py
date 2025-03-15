@@ -193,26 +193,24 @@ def get_watchlist_data(exclude_ticker: str) -> pd.DataFrame:
     return watchlist_df
 
 def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, ticker2: str) -> str:
-    """Generate an AI-based comparison summary in bullet points with refined style."""
+    """Generate a professional AI-based comparison summary in bullet points."""
     
     avg1 = data1["Close"].mean()
     avg2 = data2["Close"].mean()
     vol1 = data1["Volume"].mean() if "Volume" in data1.columns else None
     vol2 = data2["Volume"].mean() if "Volume" in data2.columns else None
 
-    lines = []
-    lines.append(f"- **{ticker1} Average Closing Price:** ${avg1:.2f}")
-    lines.append(f"- **{ticker2} Average Closing Price:** ${avg2:.2f}")
-    
-    if avg1 > avg2:
-        lines.append(f"- **Price Performance:** {ticker1} appears to be **outperforming** {ticker2}.")
-    else:
-        lines.append(f"- **Price Performance:** {ticker2} appears to be **outperforming** {ticker1}.")
+    lines = [
+        "**Final Verdict**",
+        f"- **{ticker1} Average Closing Price:** ${avg1:.2f}",
+        f"- **{ticker2} Average Closing Price:** ${avg2:.2f}",
+        f"- **Price Performance:** {ticker1} {'**outperforms**' if avg1 > avg2 else '**underperforms**'} {ticker2}.",
+    ]
     
     if vol1 is not None and vol2 is not None:
         lines.append(f"- **Average Trading Volume:** {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
     
-    return "\n".join(lines)  # Ensuring proper markdown-friendly format
+    return "\n".join(lines)
 
 # ---------- Main App ----------
 def main():
