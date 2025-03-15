@@ -201,14 +201,14 @@ def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, 
     vol2 = data2["Volume"].mean() if "Volume" in data2.columns else None
 
     lines = [
-        "**Final Verdict**",
-        f"- **{ticker1} Average Closing Price:** ${avg1:.2f}",
-        f"- **{ticker2} Average Closing Price:** ${avg2:.2f}",
-        f"- **Price Performance:** {ticker1} {'**outperforms**' if avg1 > avg2 else '**underperforms**'} {ticker2}.",
+        "Final Verdict",
+        f"- {ticker1} Average Closing Price: ${avg1:.2f}",
+        f"- {ticker2} Average Closing Price: ${avg2:.2f}",
+        f"- Price Performance: {ticker1} {'outperforms' if avg1 > avg2 else 'underperforms'} {ticker2}.",
     ]
     
     if vol1 is not None and vol2 is not None:
-        lines.append(f"- **Average Trading Volume:** {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
+        lines.append(f"- Average Trading Volume: {ticker1}: {vol1:,.0f} shares; {ticker2}: {vol2:,.0f} shares.")
     
     return "\n".join(lines)
 
