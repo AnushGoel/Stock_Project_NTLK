@@ -114,9 +114,12 @@ Released under the **MIT License**. For research and educational use.
 
 ## 📚 Citation
 
-If you use **StockGPT** in your research or development, please cite:
+If you use **StockGPT** in your research, please consider referencing the following works for related context and methodological inspiration:
 
-> Doe, J., & Smith, A. (2024). *StockGPT: An Integrated Framework for Financial Forecasting and Sentiment-Aware Market Analysis*. Journal of Computational Finance Research, 18(2), 112–129. https://doi.org/10.1234/jcfr.2024.01802
+> **Koa, K.J., Ma, Y., Ng, R., & Chua, T.S.** (2024, May). Learning to generate explainable stock predictions using self-reflective large language models. *Proceedings of the ACM Web Conference 2024*, 4304–4315. [https://dl.acm.org/doi/pdf/10.1145/3589334.3645611](https://dl.acm.org/doi/pdf/10.1145/3589334.3645611)
+
+> **Thomas, P., Spielman, S., Craswell, N., & Mitra, B.** (2024, July). Large language models can accurately predict searcher preferences. *Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval*, 1930–1940. [https://dl.acm.org/doi/pdf/10.1145/3626772.3657707](https://dl.acm.org/doi/pdf/10.1145/3626772.3657707)
+
 
 ---
 
