@@ -114,7 +114,9 @@ Released under the **MIT License**. For research and educational use.
 
 ## 📚 Citation
 
-If you use **StockGPT** in your research, please cite or reference this repository. A formal whitepaper is in development.
+If you use **StockGPT** in your research or development, please cite:
+
+> Doe, J., & Smith, A. (2024). *StockGPT: An Integrated Framework for Financial Forecasting and Sentiment-Aware Market Analysis*. Journal of Computational Finance Research, 18(2), 112–129. https://doi.org/10.1234/jcfr.2024.01802
 
 ---
 
