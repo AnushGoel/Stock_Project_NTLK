@@ -216,7 +216,7 @@ def ai_based_comparison(data1: pd.DataFrame, data2: pd.DataFrame, ticker1: str, 
 def main():
     # Sidebar inputs
     ticker = st.sidebar.text_input("📌 Stock Ticker:", "AAPL").upper()
-    start_date = st.sidebar.date_input("📅 Start Date", datetime.date.today() - datetime.timedelta(days=365))
+    start_date = st.sidebar.date_input("📅 Start Date", datetime.date(2017, 1, 1))
     end_date = datetime.date.today()
     forecast_days = st.sidebar.slider("Forecast Days", 7, 60, 30)
     
